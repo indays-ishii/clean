@@ -409,14 +409,15 @@
     const live = (id) => js[id] && js[id].state !== 'completing' ? js[id] : null;
     const todo = tasks.filter(t => !t.done), done = tasks.filter(t => t.done);
 
-    // リング：今日締切（過ぎたものも含む）の未完了 ＋ 今日完了した部屋 のうち、完了した数
+    // リング：今日が締切の部屋（過ぎたものも含む）だけを数える。先の締切の部屋を前倒しで終えても数えない（ishiiさん 2026-09-26）
     const mustToday = todo.filter(t => t.due && dueDay(t) <= today);
-    setRing(done.length, mustToday.length + done.length);
+    const doneToday = done.filter(t => t.due && dueDay(t) <= today);
+    setRing(doneToday.length, mustToday.length + doneToday.length);
     let subText = '';
     if (today) {
       const next = todo.filter(t => t.due).sort((a, b) => a.due < b.due ? -1 : 1)[0];
       subText = mdw(today) + '・' + (mustToday.length ? '今日締切あと' + mustToday.length + '部屋'
-        : done.length ? '今日の分は完了' : next ? '今日の締切なし' : '清掃待ちなし');
+        : doneToday.length ? '今日締切の分は完了' : next ? '今日の締切なし' : '清掃待ちなし');
     }
     document.getElementById('date').textContent = subText || '\u00a0';
 
