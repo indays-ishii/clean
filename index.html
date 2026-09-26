@@ -94,6 +94,15 @@
     opacity: 0; transition: .25s; z-index: 20; white-space: nowrap; }
   .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
   .toast.bad { background: var(--red); }
+
+  /* 表示以外の施設 */
+  .othersBtn { display: block; width: 100%; margin: 26px 0 0; height: 50px; border-radius: 14px; border: 1.5px solid var(--line);
+    background: transparent; color: var(--sub); font: inherit; font-size: 16px; font-weight: 700; }
+  .others { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .other { height: 58px; border-radius: 14px; border: 0; background: var(--card); color: var(--ink); box-shadow: var(--shadow);
+    font: inherit; font-size: 17px; font-weight: 800; }
+  .other:active { transform: scale(.97); }
+  .othersNote { grid-column: 1 / -1; color: var(--sub); font-size: 13px; text-align: center; margin-bottom: 2px; }
 </style>
 </head>
 <body>
@@ -126,10 +135,11 @@
   window.addEventListener('unhandledrejection', (e) => showErr((e.reason && e.reason.message) || String(e.reason)));
   const API_URL = 'https://script.google.com/macros/s/AKfycbwbjt-hp9B4waGGvv1rmac6oKwZX6iJJI0cXQGhtfZz7ZKwDJT1rOxgtv2eiigKFYoDJw/exec';
   const PASS_KEY = 'ochahouse-clean-pass';
-  const MAX_SIDE = 1280, QUALITY = 0.6;          // 画質は低くてよい（ishiiさん 2026-09-26）
+  const MAX_SIDE = 1024, QUALITY = 0.5;          // 画質は低くてよい（ishiiさん 2026-09-26）。軽いほど速く送れる
+  const PER_REQ = 3, PARALLEL = 2;               // 3枚ずつまとめて、2本同時に送る（1枚ずつより数倍速い）
   const UPLOAD_TTL = 50 * 60 * 1000;             // Notionに預けた写真は1時間で消えるので、50分を過ぎたら送り直す
   const WD = '日月火水木金土';
-  let tasks = [], today = '', picking = null, running = false, passAsked = false;
+  let tasks = [], rooms = [], today = '', picking = null, running = false, passAsked = false, showOthers = false;
 
   // ---------------------------------------------------------------- 合言葉
   function getPass() { try { return localStorage.getItem(PASS_KEY) || ''; } catch (e) { return window._pass || ''; } }
@@ -219,6 +229,15 @@
     return { text: text, hot: over || day <= today };
   }
 
+  function progressCard(j, name, hot) {
+    const sent = j.uploads.filter(Boolean).length, all = j.photos.length || 1;
+    const waiting = j.state === 'waiting';
+    return '<div class="room ' + (waiting ? 'waiting' : 'sending') + (hot ? ' early' : '') + '">' + name
+      + '<div class="bar"><i style="width:' + Math.round(sent / all * 100) + '%"></i></div>'
+      + '<div class="prog"><span>' + (waiting ? '電波が戻ったら自動で送ります' : j.state === 'preparing' ? '写真を準備しています' : sent === all ? '完了にしています…' : '写真を送っています') + '</span><span>'
+      + sent + ' / ' + j.photos.length + '枚</span></div></div>';
+  }
+
   async function render() {
     const js = {}; (await jobs()).forEach(j => js[j.id] = j);
     if (today) {
@@ -228,7 +247,11 @@
     const todo = tasks.filter(t => !t.done), done = tasks.filter(t => t.done);
     document.getElementById('left').innerHTML = todo.length ? 'あと<b>' + todo.length + '</b>部屋' : '';
     let h = '';
-    if (today && !todo.length) h = '<div class="empty"><div class="big">' + (done.length ? '✨' : '🌿') + '</div>清掃待ちの部屋はありません'
+    // 表示以外の施設で送信中の部屋
+    Object.values(js).filter(j => j.id.indexOf('room:') === 0).forEach(j => {
+      h += progressCard(j, '<div class="name">' + esc(j.room) + '</div><div class="when">一覧外の清掃</div>', false);
+    });
+    if (today && !todo.length && !h) h = '<div class="empty"><div class="big">' + (done.length ? '✨' : '🌿') + '</div>清掃待ちの部屋はありません'
       + (done.length ? '<br>おつかれさまでした' : '') + '</div>';
     todo.forEach(t => {
       const w = when(t);
@@ -239,12 +262,7 @@
         + (t.note ? '<div class="note">' + esc(t.note) + '</div>' : '');
       const early = w.hot;
       if (j) {
-        const sent = j.uploads.filter(Boolean).length, all = j.photos.length;
-        const waiting = j.state === 'waiting';
-        h += '<div class="room ' + (waiting ? 'waiting' : 'sending') + (early ? ' early' : '') + '">' + name
-          + '<div class="bar"><i style="width:' + Math.round(sent / all * 100) + '%"></i></div>'
-          + '<div class="prog"><span>' + (waiting ? '電波が戻ったら自動で送ります' : j.state === 'preparing' ? '写真を準備しています' : sent === all ? '完了にしています…' : '写真を送っています') + '</span><span>'
-          + sent + ' / ' + all + '枚</span></div></div>';
+        h += progressCard(j, name, early);
       } else {
         h += '<button class="room' + (early ? ' early' : '') + '" data-act="pick" data-id="' + t.id + '">' + name
           + '<div class="cta">📷 写真を選んで完了</div></button>';
@@ -255,13 +273,22 @@
       h += '<button class="done" data-act="undo" data-id="' + t.id + '"><div class="ok">✓</div><div><div class="n">'
         + esc(t.room.replace(/^（見本）/, '')) + '</div><div class="m">' + hm(t.doneAt) + ' 完了・写真' + (t.photos || 0) + '枚</div></div></button>';
     });
+    if (today) {
+      const busy = new Set(todo.map(t => t.room).concat(Object.values(js).map(j => j.room)));
+      const rest = rooms.filter(r => !busy.has(r));
+      h += '<button class="othersBtn" data-act="others">' + (showOthers ? '閉じる' : '表示以外の施設') + '</button>';
+      if (showOthers) {
+        h += '<div class="others"><div class="othersNote">一覧にない部屋を掃除したときはここから</div>'
+          + rest.map(r => '<button class="other" data-act="pick" data-id="room:' + esc(r) + '">' + esc(r) + '</button>').join('') + '</div>';
+      }
+    }
     document.getElementById('list').innerHTML = h;
     document.getElementById('hint').textContent = todo.length ? '清掃中はふだんのカメラで撮っておき、終わったら部屋を押して写真をまとめて選んでください' : '';
   }
 
   async function load() {
     if (!getPass()) { askPass(); return; }
-    try { const d = await api('list'); tasks = d.tasks; today = d.today; render(); }
+    try { const d = await api('list'); tasks = d.tasks; today = d.today; rooms = d.rooms || rooms; render(); }
     catch (e) {
       if (e.silent) return;
       if (!tasks.length) document.getElementById('list').innerHTML = '<div class="empty">読み込めませんでした<br>電波の良い所で開き直してください</div>';
@@ -293,7 +320,8 @@
     const id = picking; picking = null;
     if (!files.length || !id) return;
     const t = tasks.find(x => x.id === id);
-    const job = { id: id, room: t ? t.room : '', photos: [], uploads: [], at: [], state: 'preparing', created: Date.now() };
+    if (id.indexOf('room:') === 0) showOthers = false;
+    const job = { id: id, room: t ? t.room : id.replace(/^room:/, ''), photos: [], uploads: [], at: [], state: 'preparing', created: Date.now() };
     await putJob(job); render();
     for (const f of files) {
       try { job.photos.push(await shrink(f)); } catch (e) { /* 読めない写真は飛ばす */ }
@@ -314,15 +342,23 @@
         if (job.state === 'preparing' && Date.now() - job.created < 5 * 60 * 1000) continue;  // まだ写真を縮めている途中
         job.state = 'sending'; await putJob(job); render();
         try {
-          for (let i = 0; i < job.photos.length; i++) {
-            if (job.uploads[i] && Date.now() - job.at[i] < UPLOAD_TTL) continue;
-            const r = await api('upload', { b64: job.photos[i], filename: 'photo' + (i + 1) + '.jpg' });
-            job.uploads[i] = r.upload; job.at[i] = Date.now();
-            await putJob(job); render();
-          }
-          const d = await api('complete', { id: job.id, uploads: job.uploads.filter(Boolean) });
+          // まだ届いていない写真を PER_REQ 枚ずつに分け、PARALLEL 本ずつ同時に送る
+          const todoIdx = job.photos.map((_, i) => i).filter(i => !(job.uploads[i] && Date.now() - job.at[i] < UPLOAD_TTL));
+          const chunks = [];
+          for (let k = 0; k < todoIdx.length; k += PER_REQ) chunks.push(todoIdx.slice(k, k + PER_REQ));
+          const worker = async () => {
+            for (let c = chunks.shift(); c; c = chunks.shift()) {
+              const r = await api('uploads', { files: c.map(i => ({ b64: job.photos[i], filename: 'photo' + (i + 1) + '.jpg' })) });
+              c.forEach((i, n) => { job.uploads[i] = r.uploads[n]; job.at[i] = Date.now(); });
+              await putJob(job); render();
+            }
+          };
+          await Promise.all(Array.from({ length: PARALLEL }, worker));
+          const room = job.id.indexOf('room:') === 0 ? job.id.slice(5) : '';
+          const d = await api('complete', room ? { room: room, uploads: job.uploads.filter(Boolean) }
+                                               : { id: job.id, uploads: job.uploads.filter(Boolean) });
           await delJob(job.id);
-          tasks = d.tasks; today = d.today; render();
+          tasks = d.tasks; today = d.today; rooms = d.rooms || rooms; render();
           toast('✓ ' + job.room.replace(/^（見本）/, '') + ' 完了しました');
         } catch (e) {
           if (e && e.silent) break;
@@ -343,7 +379,7 @@
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
-    ({ pick: pick, undo: undo })[b.dataset.act](b.dataset.id);
+    ({ pick: pick, undo: undo, others: () => { showOthers = !showOthers; render(); } })[b.dataset.act](b.dataset.id);
   });
   window.addEventListener('online', pump);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { load(); pump(); } });
