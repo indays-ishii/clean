@@ -6,15 +6,16 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="今日の清掃">
+<meta name="apple-mobile-web-app-title" content="清掃">
 <meta name="theme-color" content="#f5f5f2" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#121312" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>今日の清掃</title>
+<title>清掃</title>
 <!--
-  OCHAHOUSE 清掃会社用「今日の清掃」（GitHub Pages: indays-ishii/clean）
+  OCHAHOUSE 清掃会社用「清掃」（GitHub Pages: indays-ishii/clean）
   ishiiさん決定 2026-09-26：機能は完了報告だけ。デザインとシンプルさを磨く。
+  まだ完了していない部屋を期限（＝次のゲストのチェックイン）の早い順にすべて出す。明日OUTの部屋も前日昼から出て、ボタンはいつでも押せる。
   使い方：部屋を押す → 写真をまとめて選ぶ（1回15枚ほど）→ 1枚ずつ送信 → 全部届いたら自動で完了。
   電波が切れても写真はこの端末に残り、つながったら続きから自動で送る。
   データの読み書きは Google Apps Script（ishii@indays.jp）の受け口 API_URL。合言葉はこのページに書かない。
@@ -53,6 +54,7 @@
   .room .cta { margin-top: 18px; display: flex; align-items: center; justify-content: center; gap: 8px;
     height: 56px; border-radius: 16px; background: var(--ink); color: var(--bg); font-size: 18px; font-weight: 700; }
   .room.early .cta { background: var(--red); color: #fff; }
+  .room .out { margin-top: 4px; font-size: 14px; color: var(--sub); }
   .tag { display: inline-block; vertical-align: middle; margin-left: 8px; font-size: 13px; font-weight: 700;
     color: #fff; background: var(--red); border-radius: 8px; padding: 3px 8px; }
 
@@ -97,7 +99,7 @@
 <body>
 <main>
   <header>
-    <div><h1>今日の清掃</h1><div class="sub" id="date">&nbsp;</div></div>
+    <div><h1>清掃</h1><div class="sub" id="date">&nbsp;</div></div>
     <div class="left" id="left"></div>
   </header>
   <div id="list"></div>
@@ -178,6 +180,23 @@
     clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast' + (bad ? ' bad' : ''), bad ? 5000 : 2600);
   }
 
+  // 期限の見せ方：今日 16:00まで／明日 15:00まで／9/29（火）16:00まで。今日が期限か過ぎていれば赤
+  function rel(ymd) {
+    if (ymd === today) return '今日';
+    const d = new Date(ymd + 'T00:00:00+09:00'), t = new Date(today + 'T00:00:00+09:00');
+    const n = Math.round((d - t) / 86400000);
+    if (n === 1) return '明日';
+    if (n === -1) return '昨日';
+    return (d.getMonth() + 1) + '/' + d.getDate() + '（' + WD[d.getDay()] + '）';
+  }
+  function when(t) {
+    if (!t.due) return { text: '次の予約なし', hot: false };
+    const day = t.due.slice(0, 10), early = /アーリー/.test(t.deadline);
+    const over = new Date(t.due) < new Date();
+    const text = rel(day) + ' ' + hm(t.due) + 'まで' + (early ? '（アーリー）' : '') + (over ? '・過ぎています' : '');
+    return { text: text, hot: over || day <= today };
+  }
+
   async function render() {
     const js = {}; (await jobs()).forEach(j => js[j.id] = j);
     if (today) {
@@ -187,14 +206,16 @@
     const todo = tasks.filter(t => !t.done), done = tasks.filter(t => t.done);
     document.getElementById('left').innerHTML = todo.length ? 'あと<b>' + todo.length + '</b>部屋' : '';
     let h = '';
-    if (today && !tasks.length) h = '<div class="empty"><div class="big">🌿</div>今日の清掃はありません</div>';
-    if (today && tasks.length && !todo.length) h = '<div class="empty"><div class="big">✨</div>今日の清掃はすべて完了です<br>おつかれさまでした</div>';
+    if (today && !todo.length) h = '<div class="empty"><div class="big">' + (done.length ? '✨' : '🌿') + '</div>清掃待ちの部屋はありません'
+      + (done.length ? '<br>おつかれさまでした' : '') + '</div>';
     todo.forEach(t => {
-      const early = /⚠️|アーリー/.test(t.deadline);
+      const w = when(t);
       const j = js[t.id];
-      const name = '<div class="name">' + esc(t.room.replace(/^（見本）/, '')) + (t.old ? '<span class="tag">昨日の分</span>' : '') + '</div>'
-        + (t.deadline ? '<div class="when">' + esc(t.deadline.replace(/^⚠️\s*/, '')) + '</div>' : '')
+      const name = '<div class="name">' + esc(t.room.replace(/^（見本）/, '')) + '</div>'
+        + '<div class="when">' + esc(w.text) + '</div>'
+        + (t.day > today ? '<div class="out">' + rel(t.day) + (t.out ? ' ' + t.out : '') + ' チェックアウト後</div>' : '')
         + (t.note ? '<div class="note">' + esc(t.note) + '</div>' : '');
+      const early = w.hot;
       if (j) {
         const sent = j.uploads.filter(Boolean).length, all = j.photos.length;
         const waiting = j.state === 'waiting';
