@@ -199,6 +199,10 @@
   }
 
   // 期限の見せ方：今日 16:00まで／明日 15:00まで／9/29（火）16:00まで。今日が期限か過ぎていれば赤
+  function md(ymd) {
+    const d = new Date(ymd + 'T00:00:00+09:00');
+    return (d.getMonth() + 1) + '/' + d.getDate() + '（' + WD[d.getDay()] + '）';
+  }
   function rel(ymd) {
     if (ymd === today) return '今日';
     const d = new Date(ymd + 'T00:00:00+09:00'), t = new Date(today + 'T00:00:00+09:00');
@@ -231,7 +235,7 @@
       const j = js[t.id];
       const name = '<div class="name">' + esc(t.room.replace(/^（見本）/, '')) + '</div>'
         + '<div class="when">' + esc(w.text) + '</div>'
-        + (t.day > today ? '<div class="out">' + rel(t.day) + (t.out ? ' ' + t.out : '') + ' チェックアウト後</div>' : '')
+        + (t.day > today ? '<div class="out">' + rel(t.day) + (rel(t.day) === md(t.day) ? '' : ' ' + md(t.day)) + (t.out ? ' ' + t.out : '') + ' チェックアウト後</div>' : '')
         + (t.note ? '<div class="note">' + esc(t.note) + '</div>' : '');
       const early = w.hot;
       if (j) {
