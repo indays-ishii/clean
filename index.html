@@ -96,6 +96,16 @@
   .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
   .toast.bad { background: var(--red); }
 
+  /* 確認（ブラウザ標準の confirm はドメイン名が出て分かりにくいので自前で出す） */
+  .sheet { position: fixed; inset: 0; background: rgba(10,12,10,.45); display: none; align-items: flex-end; justify-content: center;
+    z-index: 15; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); }
+  .sheet.on { display: flex; }
+  .sheet .panel { width: min(100%, 496px); background: var(--card); color: var(--ink); border-radius: 24px; padding: 24px 18px 14px; text-align: center; }
+  .sheet .q { white-space: pre-line; font-size: 20px; font-weight: 800; line-height: 1.45; margin-bottom: 18px; }
+  .sheet button { display: block; width: 100%; height: 56px; border: 0; border-radius: 16px; font: inherit; font-size: 18px; font-weight: 800; }
+  .sheet .yes { background: var(--red); color: #fff; }
+  .sheet .no { background: transparent; color: var(--sub); margin-top: 6px; }
+
   /* 表示以外の施設 */
   .othersBtn { display: block; width: 100%; margin: 26px 0 0; height: 50px; border-radius: 14px; border: 1.5px solid var(--line);
     background: transparent; color: var(--sub); font: inherit; font-size: 16px; font-weight: 700; }
@@ -126,6 +136,13 @@
     <div class="err" id="passErr"></div>
     <button class="go" type="submit">はじめる</button>
   </form>
+</div>
+<div class="sheet" id="sheet">
+  <div class="panel">
+    <div class="q" id="sheetQ"></div>
+    <button class="yes" id="sheetYes"></button>
+    <button class="no" id="sheetNo">やめる</button>
+  </div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -406,11 +423,26 @@
     } finally { running = false; }
   }
 
+  // ---------------------------------------------------------------- 確認
+  function ask(q, yes) {
+    return new Promise((ok) => {
+      const el = document.getElementById('sheet');
+      document.getElementById('sheetQ').textContent = q;
+      document.getElementById('sheetYes').textContent = yes;
+      const done = (v) => { el.classList.remove('on'); el.onclick = null; ok(v); };
+      el.onclick = (e) => {
+        if (e.target.id === 'sheetYes') done(true);
+        else if (e.target.id === 'sheetNo' || e.target === el) done(false);
+      };
+      el.classList.add('on');
+    });
+  }
+
   // ---------------------------------------------------------------- 取り消し
   async function undo(id) {
     const t = tasks.find(x => x.id === id);
     if (t && id.indexOf('tmp-') === 0) { toast('送信の仕上げ中です。数秒後にもう一度押してください', true); return; }
-    if (!t || !confirm(t.room.replace(/^（見本）/, '') + ' の完了を取り消しますか？')) return;
+    if (!t || !(await ask(t.room.replace(/^（見本）/, '') + ' の完了を\n取り消しますか？', '取り消す'))) return;
     // 返事を待たずに画面を戻す。失敗したら元に戻す
     const before = { done: t.done, doneAt: t.doneAt };
     if (t.deadline === '一覧外の清掃') tasks = tasks.filter(x => x !== t); else Object.assign(t, { done: false, doneAt: '' });
