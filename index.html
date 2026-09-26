@@ -95,6 +95,34 @@
   .done .n { flex: 1; font-size: 15px; color: var(--sub); }
   .done .m { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
+  /* 完了した部屋の写真 */
+  .viewer { position: fixed; inset: 0; z-index: 12; background: var(--bg); display: none; flex-direction: column;
+    padding-top: env(safe-area-inset-top); }
+  .viewer.on { display: flex; }
+  .vhead { display: flex; align-items: center; gap: 12px; padding: 14px 16px 12px; border-bottom: 1px solid var(--line); }
+  .vhead .ok { width: 26px; height: 26px; color: var(--matcha); flex: none; }
+  .vhead .t { flex: 1; min-width: 0; }
+  .vhead .t b { display: block; font-size: 18px; }
+  .vhead .t span { font-size: 12px; color: var(--sub); }
+  .x { width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--line); color: var(--ink); flex: none;
+    display: flex; align-items: center; justify-content: center; }
+  .x svg { width: 18px; height: 18px; }
+  .grid { flex: 1; overflow-y: auto; padding: 12px 12px 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; align-content: start; }
+  .grid button { padding: 0; border: 0; aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: var(--line); }
+  .grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .grid .msg { grid-column: 1 / -1; text-align: center; color: var(--sub); font-size: 14px; padding: 40px 0; }
+  .vfoot { padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); text-align: center; }
+  .vfoot button { border: 0; background: none; color: var(--red); font-size: 14px; padding: 10px; }
+  .lb { position: fixed; inset: 0; z-index: 13; background: #000; display: none; }
+  .lb.on { display: block; }
+  .lb .strip { display: flex; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .lb .strip::-webkit-scrollbar { display: none; }
+  .lb .strip div { flex: 0 0 100%; height: 100%; scroll-snap-align: center; display: flex; align-items: center; justify-content: center; }
+  .lb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .lb .x { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 14px; background: rgba(255,255,255,.18); color: #fff; }
+  .lb .count { position: absolute; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); text-align: center;
+    color: rgba(255,255,255,.8); font-size: 13px; font-variant-numeric: tabular-nums; }
+
   /* 表示以外の施設 */
   .othersBtn { display: block; width: 100%; margin-top: 18px; height: 48px; border-radius: 14px; border: 1px dashed var(--line2);
     background: transparent; color: var(--sub); font-size: 14px; }
@@ -173,6 +201,13 @@
     <button class="no" id="sheetNo">やめる</button>
   </div>
 </div>
+<div class="viewer" id="viewer">
+  <div class="vhead"><span class="ok" id="vOk"></span><div class="t"><b id="vRoom"></b><span id="vWhen"></span></div>
+    <button class="x" data-act="closeViewer" aria-label="閉じる"></button></div>
+  <div class="grid" id="vGrid"></div>
+  <div class="vfoot"><button id="vUndo">完了を取り消す</button></div>
+</div>
+<div class="lb" id="lb"><div class="strip" id="lbStrip"></div><button class="x" data-act="closeLb" aria-label="閉じる"></button><div class="count" id="lbCount"></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -292,6 +327,48 @@
     return n === 0 ? '今日' : n === 1 ? '明日' : n === -1 ? '昨日' : mdw(ymd);
   }
   const dueDay = (t) => (t.due || '').slice(0, 10);
+  const ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+  // 完了した日時：9/26 土 20:17 完了
+  function doneWhen(t) { return t.doneAt ? mdw(t.doneAt.slice(0, 10)) + ' ' + hm(t.doneAt) + ' 完了' : '完了'; }
+
+  // ---------------------------------------------------------------- 完了した部屋の写真を見る（取り消しもここから）
+  let viewing = null, lbUrls = [];
+  async function view(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    if (id.indexOf('tmp-') === 0) { toast('送信の仕上げ中です。数秒後にもう一度押してください', true); return; }
+    viewing = id;
+    document.getElementById('vOk').innerHTML = ICON_OK;
+    document.getElementById('vRoom').textContent = t.room;
+    document.getElementById('vWhen').textContent = doneWhen(t) + '・写真' + (t.photos || 0) + '枚';
+    const g = document.getElementById('vGrid');
+    g.innerHTML = t.photos ? Array.from({ length: t.photos }, () => '<button></button>').join('') : '<div class="msg">写真はありません</div>';
+    document.querySelectorAll('.viewer .x, .lb .x').forEach(b => b.innerHTML = ICON_X);
+    document.getElementById('viewer').classList.add('on');
+    try {
+      const d = await api('photos', { id: id });
+      if (viewing !== id) return;
+      lbUrls = d.urls;
+      g.innerHTML = d.urls.length ? d.urls.map((u, i) => '<button data-act="zoom" data-id="' + i + '"><img src="' + esc(u) + '" loading="lazy" alt=""></button>').join('')
+                                  : '<div class="msg">写真はありません</div>';
+    } catch (e) { if (!e.silent && viewing === id) g.innerHTML = '<div class="msg">写真を読み込めませんでした</div>'; }
+  }
+  function closeViewer() { viewing = null; document.getElementById('viewer').classList.remove('on'); }
+  function zoom(i) {
+    const st = document.getElementById('lbStrip');
+    st.innerHTML = lbUrls.map(u => '<div><img src="' + esc(u) + '" alt=""></div>').join('');
+    document.getElementById('lb').classList.add('on');
+    st.scrollLeft = st.clientWidth * i;
+    const cnt = () => document.getElementById('lbCount').textContent = (Math.round(st.scrollLeft / st.clientWidth) + 1) + ' / ' + lbUrls.length;
+    st.onscroll = cnt; cnt();
+  }
+  function closeLb() { document.getElementById('lb').classList.remove('on'); }
+  document.getElementById('vUndo').addEventListener('click', async () => {
+    const id = viewing; if (!id) return;
+    const t = tasks.find(x => x.id === id);
+    if (!t || !(await ask(t.room + ' の完了を\n取り消しますか？\n（送った写真も外れます）', '取り消す'))) return;
+    closeViewer(); undo(id, true);
+  });
 
   function miniRing(j) {
     const all = j.photos.length || 1, sent = j.uploads.filter(Boolean).length, C = 2 * Math.PI * 16;
@@ -367,8 +444,8 @@
 
     if (done.length) {
       h += '<div class="doneBox"><div class="cap">今日完了</div>' + done.map(t =>
-        '<button class="done" data-act="undo" data-id="' + t.id + '"><span class="ok">' + ICON_OK + '</span><span class="n">' + esc(t.room)
-        + '</span><span class="m">' + hm(t.doneAt) + '・' + (t.photos || 0) + '枚</span></button>').join('') + '</div>';
+        '<button class="done" data-act="view" data-id="' + t.id + '"><span class="ok">' + ICON_OK + '</span><span class="n">' + esc(t.room)
+        + '</span><span class="m">' + doneWhen(t) + '・' + (t.photos || 0) + '枚</span></button>').join('') + '</div>';
     }
     if (today) {
       const busy = new Set(todo.map(t => t.room).concat(Object.values(js).map(j => j.room)));
@@ -491,10 +568,10 @@
   }
 
   // ---------------------------------------------------------------- 取り消し
-  async function undo(id) {
+  async function undo(id, confirmed) {
     const t = tasks.find(x => x.id === id);
     if (t && id.indexOf('tmp-') === 0) { toast('送信の仕上げ中です。数秒後にもう一度押してください', true); return; }
-    if (!t || !(await ask(t.room + ' の完了を\n取り消しますか？', '取り消す'))) return;
+    if (!t || (!confirmed && !(await ask(t.room + ' の完了を\n取り消しますか？', '取り消す')))) return;
     // 返事を待たずに画面を戻す。失敗したら元に戻す
     const before = { done: t.done, doneAt: t.doneAt };
     if (t.deadline === '一覧外の清掃') tasks = tasks.filter(x => x !== t); else Object.assign(t, { done: false, doneAt: '' });
@@ -510,7 +587,8 @@
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
-    ({ pick: pick, undo: undo, others: () => { showOthers = !showOthers; render(); } })[b.dataset.act](b.dataset.id);
+    ({ pick: pick, undo: undo, view: view, zoom: (i) => zoom(+i), closeViewer: closeViewer, closeLb: closeLb,
+       others: () => { showOthers = !showOthers; render(); } })[b.dataset.act](b.dataset.id);
   });
   window.addEventListener('online', pump);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { load(); pump(); } });
