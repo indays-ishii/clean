@@ -18,7 +18,7 @@
   まだ完了していない部屋を期限（＝次のゲストのチェックイン）の早い順にすべて出す。明日OUTの部屋も前日昼から出て、ボタンはいつでも押せる。
   使い方：部屋を押す → 写真をまとめて選ぶ（1回15枚ほど）→ 1枚ずつ送信 → 全部届いたら自動で完了。
   電波が切れても写真はこの端末に残り、つながったら続きから自動で送る。
-  データの読み書きは Google Apps Script（ishii@indays.jp）の受け口 API_URL。合言葉はこのページに書かない。
+  データの読み書きは Cloudflare Workers の受け口 API_URL（ochahouse-ops/cleaning-worker）。合言葉はこのページに書かない。
 -->
 <style>
   :root {
@@ -134,10 +134,10 @@
   function showErr(m) { const h = document.getElementById('hint'); if (h) h.textContent = '（エラー：' + m + '）'; }
   window.addEventListener('error', (e) => showErr(e.message));
   window.addEventListener('unhandledrejection', (e) => showErr((e.reason && e.reason.message) || String(e.reason)));
-  const API_URL = 'https://script.google.com/macros/s/AKfycbwbjt-hp9B4waGGvv1rmac6oKwZX6iJJI0cXQGhtfZz7ZKwDJT1rOxgtv2eiigKFYoDJw/exec';
+  const API_URL = 'https://ochahouse-clean-api.ishii-8e0.workers.dev';   // Cloudflare Workers（2026-09-26 Google Apps Script から移行）
   const PASS_KEY = 'ochahouse-clean-pass';
   const MAX_SIDE = 1024, QUALITY = 0.5;          // 画質は低くてよい（ishiiさん 2026-09-26）。軽いほど速く送れる
-  const PER_REQ = 3, PARALLEL = 2;               // 3枚ずつまとめて、2本同時に送る（1枚ずつより数倍速い）
+  const PARALLEL = 5;                            // 1枚ずつ、5本同時に送る（受け口は Cloudflare Workers で速い）
   const UPLOAD_TTL = 50 * 60 * 1000;             // Notionに預けた写真は1時間で消えるので、50分を過ぎたら送り直す
   const WD = '日月火水木金土';
   let tasks = [], rooms = [], today = '', picking = null, running = false, passAsked = false, showOthers = false;
@@ -178,6 +178,16 @@
   }
 
   // ---------------------------------------------------------------- 受け口
+  async function upload(b64, filename) {
+    const blob = await (await fetch('data:image/jpeg;base64,' + b64)).blob();
+    const f = new FormData();
+    f.append('pass', getPass()); f.append('file', blob, filename);
+    const j = await (await fetch(API_URL, { method: 'POST', body: f })).json();
+    if (!j.ok && j.error === 'passcode') { setPass(''); askPass('合言葉がちがいます'); throw { silent: true }; }
+    if (!j.ok) throw new Error(j.error || 'エラー');
+    return j.data.upload;
+  }
+
   async function api(action, extra) {
     const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(Object.assign({ pass: getPass(), action: action }, extra || {})) });
     const j = await res.json();
@@ -362,14 +372,11 @@
         if (job.state === 'preparing' && Date.now() - job.created < 5 * 60 * 1000) continue;  // まだ写真を縮めている途中
         job.state = 'sending'; await putJob(job); render();
         try {
-          // まだ届いていない写真を PER_REQ 枚ずつに分け、PARALLEL 本ずつ同時に送る
+          // まだ届いていない写真を、PARALLEL 本ずつ同時に1枚ずつ送る
           const todoIdx = job.photos.map((_, i) => i).filter(i => !(job.uploads[i] && Date.now() - job.at[i] < UPLOAD_TTL));
-          const chunks = [];
-          for (let k = 0; k < todoIdx.length; k += PER_REQ) chunks.push(todoIdx.slice(k, k + PER_REQ));
           const worker = async () => {
-            for (let c = chunks.shift(); c; c = chunks.shift()) {
-              const r = await api('uploads', { files: c.map(i => ({ b64: job.photos[i], filename: 'photo' + (i + 1) + '.jpg' })) });
-              c.forEach((i, n) => { job.uploads[i] = r.uploads[n]; job.at[i] = Date.now(); });
+            for (let i = todoIdx.shift(); i !== undefined; i = todoIdx.shift()) {
+              job.uploads[i] = await upload(job.photos[i], 'photo' + (i + 1) + '.jpg'); job.at[i] = Date.now();
               await putJob(job); render();
             }
           };
