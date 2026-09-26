@@ -120,6 +120,10 @@
 <div class="toast" id="toast"></div>
 
 <script>
+  // 画面が止まったときに原因が分かるよう、エラーを下に小さく出す
+  function showErr(m) { const h = document.getElementById('hint'); if (h) h.textContent = '（エラー：' + m + '）'; }
+  window.addEventListener('error', (e) => showErr(e.message));
+  window.addEventListener('unhandledrejection', (e) => showErr((e.reason && e.reason.message) || String(e.reason)));
   const API_URL = 'https://script.google.com/macros/s/AKfycbwbjt-hp9B4waGGvv1rmac6oKwZX6iJJI0cXQGhtfZz7ZKwDJT1rOxgtv2eiigKFYoDJw/exec';
   const PASS_KEY = 'ochahouse-clean-pass';
   const MAX_SIDE = 1280, QUALITY = 0.6;          // 画質は低くてよい（ishiiさん 2026-09-26）
@@ -155,21 +159,35 @@
   }
 
   // ---------------------------------------------------------------- 送信待ちの保管（この端末の IndexedDB）
+  // iPhoneのSafariやLINEの中のブラウザでは IndexedDB が開けない・返事が来ないことがある。
+  // その時はこの画面を開いている間だけの保管に切り替え、一覧の表示は止めない。
+  const mem = new Map();
   let dbp = null;
   function db() {
-    if (!dbp) dbp = new Promise((ok, ng) => {
-      const r = indexedDB.open('ochahouse-clean', 1);
-      r.onupgradeneeded = () => r.result.createObjectStore('jobs', { keyPath: 'id' });
-      r.onsuccess = () => ok(r.result); r.onerror = () => ng(r.error);
+    if (!dbp) dbp = new Promise((ok) => {
+      const t = setTimeout(() => ok(null), 1500);
+      try {
+        const r = indexedDB.open('ochahouse-clean', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('jobs', { keyPath: 'id' });
+        r.onsuccess = () => { clearTimeout(t); ok(r.result); };
+        r.onerror = r.onblocked = () => { clearTimeout(t); ok(null); };
+      } catch (e) { clearTimeout(t); ok(null); }
     });
     return dbp;
   }
-  async function jobs() {
-    const d = await db();
-    return new Promise((ok) => { const q = d.transaction('jobs').objectStore('jobs').getAll(); q.onsuccess = () => ok(q.result || []); q.onerror = () => ok([]); });
+  function tx(mode, fn, fallback) {
+    return db().then((d) => new Promise((ok) => {
+      if (!d) return ok(fallback());
+      try {
+        const t = d.transaction('jobs', mode), st = t.objectStore('jobs'), q = fn(st);
+        t.oncomplete = () => ok(q && q.result !== undefined ? q.result : undefined);
+        t.onerror = t.onabort = () => ok(fallback());
+      } catch (e) { ok(fallback()); }
+    }));
   }
-  async function putJob(j) { const d = await db(); return new Promise((ok) => { const t = d.transaction('jobs', 'readwrite'); t.objectStore('jobs').put(j); t.oncomplete = ok; }); }
-  async function delJob(id) { const d = await db(); return new Promise((ok) => { const t = d.transaction('jobs', 'readwrite'); t.objectStore('jobs').delete(id); t.oncomplete = ok; }); }
+  async function jobs() { return (await tx('readonly', st => st.getAll(), () => Array.from(mem.values()))) || []; }
+  function putJob(j) { mem.set(j.id, j); return tx('readwrite', st => { st.put(j); }, () => {}); }
+  function delJob(id) { mem.delete(id); return tx('readwrite', st => { st.delete(id); }, () => {}); }
 
   // ---------------------------------------------------------------- 画面
   function esc(s) { return String(s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -240,7 +258,11 @@
   async function load() {
     if (!getPass()) { askPass(); return; }
     try { const d = await api('list'); tasks = d.tasks; today = d.today; render(); }
-    catch (e) { if (!e.silent) { if (!today) document.getElementById('list').innerHTML = '<div class="empty">読み込めませんでした<br>電波の良い所で開き直してください</div>'; } }
+    catch (e) {
+      if (e.silent) return;
+      if (!tasks.length) document.getElementById('list').innerHTML = '<div class="empty">読み込めませんでした<br>電波の良い所で開き直してください</div>';
+      showErr(e.message || String(e));
+    }
   }
 
   // ---------------------------------------------------------------- 写真を選ぶ → 縮める → 保管
