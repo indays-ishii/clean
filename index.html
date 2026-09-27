@@ -100,6 +100,7 @@
   .vhead .t { flex: 1; min-width: 0; }
   .vhead .t b { display: block; font-size: 18px; }
   .vhead .t span { font-size: 12px; color: var(--sub); }
+  .vhead .t .rToday { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }   /* 部屋の画面にも本日の日付を小さく */
   .x { width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--line); color: var(--ink); flex: none;
     display: flex; align-items: center; justify-content: center; }
   .x svg { width: 18px; height: 18px; }
@@ -254,7 +255,7 @@
   </div>
 </div>
 <div class="viewer" id="roomSheet">
-  <div class="vhead"><div class="t"><b id="rRoom"></b><span id="rWhen"></span></div>
+  <div class="vhead"><div class="t"><span class="rToday" id="rToday"></span><b id="rRoom"></b><span id="rWhen"></span></div>
     <button class="x" data-act="closeRoom" aria-label="閉じる"></button></div>
   <div class="rbody" id="rBody"></div>
   <div class="rfoot"><button class="bigBtn two sub" id="rAdd" hidden></button><button class="bigBtn" id="rPick"></button></div>
@@ -498,7 +499,7 @@
     const js = {}; (await jobs()).forEach(j => js[j.id] = j);
     const live = (id) => js[id] && js[id].state !== 'completing' ? js[id] : null;
     const todo = tasks.filter(t => !t.done), done = tasks.filter(t => t.done);
-    document.getElementById('date').textContent = today ? '本日（' + mdw(today) + '）' : ' ';
+    document.getElementById('date').textContent = today ? '本日 ' + dwk(today) : ' ';
     document.getElementById('sum').innerHTML = today && summary ? gauge(summary) : '';
     if (!today) return;
 
@@ -668,6 +669,7 @@
     const t = tasks.find(x => x.id === id);
     if (!t) return;
     roomOpen = id;
+    document.getElementById('rToday').textContent = '本日 ' + dwk(today);
     document.getElementById('rRoom').textContent = t.room;
     document.getElementById('rWhen').textContent = t.due ? dwk(dueDay(t)) + hm(t.due) + 'まで' + (/アーリー/.test(t.deadline) ? '（アーリーIN）' : '') : '次の予約なし';
     document.getElementById('rPick').innerHTML = ICON_CAM + '写真を選んで完了';
@@ -714,6 +716,7 @@
     let lastDone = o.lastDone || '', lastId = o.lastId || '';
     tasks.filter(t => t.done && t.room === room && t.id.indexOf('tmp-') !== 0).forEach(t => { if ((t.doneAt || '') >= lastDone) { lastDone = t.doneAt; lastId = t.id; } });
     roomOpen = 'room:' + room;
+    document.getElementById('rToday').textContent = '本日 ' + dwk(today);
     document.getElementById('rRoom').textContent = room;
     document.getElementById('rWhen').textContent = o.state === 'stay' ? '滞在中（' + md(o.out) + ' OUT）'
       : lastDone ? md(lastDone.slice(0, 10)) + ' ' + hm(lastDone) + ' 完了' : '清掃の記録なし';
