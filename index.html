@@ -48,8 +48,8 @@
   h1 { font-size: 26px; font-weight: 700; margin: 0; letter-spacing: .02em; }
   .sub { color: var(--sub); font-size: 13px; margin-top: 3px; }
   #sync { color: var(--muted); }
-  .sub.today { font-size: 17px; font-weight: 700; color: var(--ink); margin-top: 4px; }   /* 本日（9/28 月）を大きく（ishiiさん 2026-09-28） */
-  .sub.today #sync { font-size: 12px; font-weight: 400; }
+  /* 見出しは「清掃」の文字をやめて本日の日付に（ishiiさん 2026-09-28） */
+  #sync:empty { display: none; }
 
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
 
@@ -105,7 +105,7 @@
   .vhead .t span { font-size: 12px; color: var(--sub); }
   /* 期限は大事なので大きく（色の帯は付けない。今日・過ぎたものは赤） */
   .rWhen { font-size: 12px; color: var(--sub); margin-top: 2px; }
-  .rWhen .dl { display: block; font-size: 11px; color: var(--sub); margin-top: 6px; }
+  .rWhen .dl { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin-top: 8px; }
   .rWhen b { font-size: 18px; color: var(--ink); }
   .rWhen.hot b { color: var(--red); }
   .rWhen .tag { vertical-align: 3px; margin-left: 0; }
@@ -116,13 +116,18 @@
   .tag.part { background: var(--blue-bg); color: var(--blue); }
   .nm small.part { color: var(--blue); }
   /* 途中まで清掃報告 */
+  .prog { background: var(--blue-bg); border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
+  .pchips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .pchip { font-size: 13px; font-weight: 600; padding: 5px 10px; border-radius: 999px; background: var(--card); color: var(--muted); border: 1px solid var(--line); }
+  .pchip.on { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .phist { font-size: 12px; color: var(--blue); line-height: 1.6; }
   .chkl { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 2px 14px; margin-bottom: 14px; }
   .chkl label { display: flex; align-items: center; gap: 12px; padding: 13px 0; font-size: 16px; }
   .chkl label + label { border-top: 1px solid var(--line); }
   .chkl input { width: 22px; height: 22px; accent-color: var(--matcha); }
   .pmemo { width: 100%; min-height: 70px; font: inherit; font-size: 15px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line2); background: var(--card); color: var(--ink); margin-bottom: 14px; }
   .ppick { display: block; width: 100%; border: 1px dashed var(--line2); background: var(--card); border-radius: 12px; padding: 12px; color: var(--matcha-ink); font-size: 14px; font-weight: 600; }
-  .vhead .t .rToday { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }   /* 部屋の画面にも本日の日付を小さく */
+  .vhead .t .rToday { display: block; font-size: 13px; font-weight: 600; color: var(--sub); margin-bottom: 3px; }   /* 部屋の画面にも本日の日付を小さく */
   .x { width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--line); color: var(--ink); flex: none;
     display: flex; align-items: center; justify-content: center; }
   .x svg { width: 18px; height: 18px; }
@@ -164,6 +169,7 @@
   .gcard .ppl { display: flex; align-items: baseline; gap: 5px; margin-top: 6px; }
   .gcard .ppl b { font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
   .gcard .ppl .ns { margin: 0 0 0 auto; }
+  .gcard .ppl .nn { margin-left: auto; display: flex; align-items: baseline; gap: 3px; }
   .garrow { display: flex; align-items: center; color: var(--muted); }
   .gnote { font-size: 11px; color: var(--sub); margin: 8px 2px 16px; }
   .pgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: -6px 0 16px; }
@@ -249,7 +255,7 @@
 <body>
 <main>
   <header>
-    <div style="flex:1"><h1>清掃</h1><div class="sub today"><span id="date">&nbsp;</span><span id="sync"></span></div></div>
+    <div style="flex:1"><h1 id="date">&nbsp;</h1><div class="sub" id="sync"></div></div>
     <div class="modesw" id="modeSw" hidden><span class="on">清掃</span><button data-act="toAdmin">管理</button></div>
   </header>
   <div class="sum" id="sum"></div>
@@ -565,7 +571,7 @@
   async function load() {
     if (!getPass()) { askPass(); return; }
     const sync = document.getElementById('sync');
-    if (tasks.length || today) sync.textContent = '・更新中';
+    if (tasks.length || today) sync.textContent = '更新中…';
     try { setData(await api('list')); render(); checkRole(); }
     catch (e) {
       if (e.silent) return;
@@ -710,14 +716,13 @@
     const w = document.getElementById('rWhen');
     w.className = 'rWhen' + (t.due && dueDay(t) <= today ? ' hot' : '');
     w.innerHTML = '<span class="dl">期限（次のチェックイン）</span>' + (t.due ? '<b>' + dwk(dueDay(t)) + hm(t.due) + 'まで</b>' : '<b>次の予約なし</b>')
-      + (/アーリー/.test(t.deadline) ? ' <span class="tag earlyR">アーリーIN</span>' : '')
-      + (t.partial ? '<br><span class="tag part">途中</span> <small style="color:var(--blue)">' + esc(t.partial.split('／').pop()) + '</small>' : '');
+      + (/アーリー/.test(t.deadline) ? ' <span class="tag earlyR">アーリーIN</span>' : '');
     document.getElementById('rPick').innerHTML = ICON_CAM + '清掃を報告して完了';
     const left = document.getElementById('rAdd');   // 左：途中まで清掃報告（ishiiさん 2026-09-28）
     left.innerHTML = '途中まで清掃報告'; left.classList.remove('two'); left.hidden = false;
     leftAct = () => openPartial(id);
     const body = document.getElementById('rBody');
-    body.innerHTML = guestCards(t.prev, t.next, /アーリー/.test(t.deadline), t.late) + (t.note ? '<div class="note" style="margin:0 0 14px">' + esc(t.note) + '</div>' : '')
+    body.innerHTML = guestCards(t.prev, t.next, /アーリー/.test(t.deadline), t.late) + progress(t.partial) + (t.note ? '<div class="note" style="margin:0 0 14px">' + esc(t.note) + '</div>' : '')
       + '<div class="rsec">入室方法</div><div id="rKeys"><div class="key"><div class="knote">読み込み中…</div></div></div>';
     document.getElementById('roomSheet').classList.add('on');
     document.getElementById('rPick').classList.remove('two');
@@ -745,7 +750,8 @@
   function guestCards(prev, next, early, late) {
     const nx = next ? '<div class="gcard nx"><div class="glb">次のゲスト IN</div><div class="tt">' + md(next.in) + ' ' + esc(next.tin || '') + '</div>'
         + (early ? '<span class="tag earlyR">アーリー</span>' : '')
-        + '<div class="ppl">' + ICON_PPL + (next.n ? '<b>' + next.n + '</b><span>名</span>' : '<span>人数不明</span>') + '<span class="ns">' + next.nights + '泊</span></div></div>'
+        + '<div class="ppl">' + ICON_PPL + (next.n ? '<b>' + next.n + '</b><span>名</span>' : '<span>人数不明</span>')
+        + '<span class="nn"><b>' + next.nights + '</b><span>泊</span></span></div></div>'
       : '<div class="gcard nx"><div class="glb">次のゲスト IN</div><div class="tt">予約なし</div></div>';
     const pv = prev ? '<div class="gcard"><div class="glb">前のゲスト OUT</div><div class="tt">' + md(prev.out) + ' ' + esc(prev.tout || '') + '</div>'
         + (late ? '<span class="tag late">レイト</span>' : '') + '<div class="ns">' + prev.nights + '泊</div></div><div class="garrow">→</div>' : '';
@@ -804,6 +810,17 @@
       + '<div class="rsec">メモ（任意）</div><textarea class="pmemo" id="pMemo" placeholder="例：続きは明日の午前にやります"></textarea>'
       + '<div class="rsec">写真（任意）</div><button class="ppick" data-act="partPick" id="pPickBtn">＋ 写真を選ぶ</button>';
     document.getElementById('partSheet').classList.add('on');
+  }
+  // 途中まで清掃報告の進み具合：済んだ項目に✓、まだの項目は○。下に報告の履歴（ishiiさん 2026-09-28）
+  function progress(partial) {
+    if (!partial) return '';
+    const segs = partial.split('／'), done = new Set();
+    // 1件は「9/28 10:12 ゴミ出し・リネン回収 済み（メモ）」
+    segs.forEach(x => { const m = /^\S+ \S+ (.+?) 済み/.exec(x); if (m) m[1].split('・').forEach(i => done.add(i)); });
+    const items = PART_ITEMS.filter(i => i !== 'その他' || done.has(i));
+    return '<div class="rsec">途中まで清掃済み</div><div class="prog"><div class="pchips">'
+      + items.map(i => '<span class="pchip' + (done.has(i) ? ' on' : '') + '">' + (done.has(i) ? '✓ ' : '') + i + '</span>').join('') + '</div>'
+      + segs.map(x => '<div class="phist">' + esc(x) + '</div>').join('') + '</div>';
   }
   function closePart() { partOpen = null; partFiles = []; document.getElementById('partSheet').classList.remove('on'); }
   document.getElementById('partPick').addEventListener('change', (ev) => {

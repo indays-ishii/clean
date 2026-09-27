@@ -236,7 +236,7 @@
   <div class="pull" id="pull">↓ 離すと更新</div>
   <div class="upd" id="upd">&nbsp;</div>
   <header style="align-items:center">
-    <div style="flex:1"><h1>清掃の管理</h1><div class="sub" id="sub">&nbsp;</div></div>
+    <div style="flex:1"><h1 id="sub">&nbsp;</h1></div>
     <div class="modesw"><button data-act="toClean">清掃</button><span class="on">管理</span></div>
   </header>
   <div class="sum" id="sum"></div>
@@ -381,7 +381,7 @@
   function render() {
     if (!D) return;
     const today = D.today, ds = days(), made = (D.bookings && D.bookings.made) || '';
-    document.getElementById('sub').textContent = mdw(today);
+    document.getElementById('sub').textContent = '本日 ' + md(today) + '（' + WD[new Date(today + 'T00:00:00Z').getUTCDay()] + '）';   // 「清掃の管理」の文字はやめて本日の日付（ishiiさん 2026-09-28）
     document.getElementById('range').textContent = md(ds[0]) + '〜' + md(ds[6]);
 
     document.getElementById('tabDay').className = tab === 'day' ? 'on' : '';
