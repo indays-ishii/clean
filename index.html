@@ -432,7 +432,9 @@
     });
     let h = '';
     groups.forEach((ts, k) => {
-      const label = k === 'over' ? '期限切れ' : k === 'none' ? '次の予約なし' : k === today ? '本日 ' + dwk(k) : (rel(k) === '明日' ? '明日 ' : '') + dwk(k);
+      // 何の日付かを添える：その日のチェックインまでに清掃（ishiiさん 2026-09-27）
+      const label = k === 'over' ? '期限切れ（急いでください）' : k === 'none' ? '次の予約なし（期限なし）'
+        : (k === today ? '本日 ' : rel(k) === '明日' ? '明日 ' : '') + dwk(k) + 'のチェックインまでに';
       h += '<div class="grp' + (k === 'over' || k === today ? ' hot' : '') + '"><div class="dh">' + label + '</div>' + ts.map(t => row(t, live(t.id), isLater)).join('') + '</div>';
     });
     return h;
