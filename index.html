@@ -69,7 +69,7 @@
   .key .code div { font-size: 11px; color: var(--sub); }
   .key .code b { display: block; font-size: 26px; color: var(--ink); letter-spacing: .08em; font-variant-numeric: tabular-nums; }
   .key .knote { font-size: 12px; color: var(--sub); margin-top: 6px; line-height: 1.5; }
-  .rfoot { padding: 10px 16px calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+  .rfoot { display: flex; gap: 8px; padding: 10px 16px calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
   .bigBtn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 56px; border: 0; border-radius: 16px;
     background: var(--matcha); color: #fff; font-size: 17px; font-weight: 700; }
   .bigBtn svg { width: 22px; height: 22px; }
@@ -119,7 +119,10 @@
   .row.idle .nm { color: var(--muted); font-weight: 500; }
   button.row { width: 100%; border: 0; background: none; text-align: left; font: inherit; color: inherit; }
   .row .rep { font-size: 13px; color: var(--sub); flex: none; margin-left: auto; }
-  .bigBtn.sub { background: transparent; color: var(--sub); border: 1px solid var(--line2); font-size: 15px; height: 48px; }
+  /* 清掃の予定が無い部屋：緑の外枠だけ。「前回の清掃に写真を追加」と「新規の清掃を報告」を左右に（ishiiさん 2026-09-27） */
+  .bigBtn.sub { background: var(--card); color: var(--matcha-ink); border: 2px solid var(--matcha); }
+  .bigBtn.two { flex-direction: column; gap: 3px; height: 66px; font-size: 14px; line-height: 1.25; }
+  .bigBtn[hidden] { display: none; }
   .lastPhotos { display: block; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 14px;
     padding: 12px 14px; margin-bottom: 14px; font-size: 14px; font-weight: 600; color: var(--matcha-ink); }
   .pgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: -6px 0 16px; }
@@ -233,7 +236,7 @@
   <div class="vhead"><div class="t"><b id="rRoom"></b><span id="rWhen"></span></div>
     <button class="x" data-act="closeRoom" aria-label="閉じる"></button></div>
   <div class="rbody" id="rBody"></div>
-  <div class="rfoot"><button class="bigBtn" id="rPick"></button></div>
+  <div class="rfoot"><button class="bigBtn two sub" id="rAdd" hidden></button><button class="bigBtn" id="rPick"></button></div>
 </div>
 <div class="lb" id="lb"><div class="strip" id="lbStrip"></div><button class="x" data-act="closeLb" aria-label="閉じる"></button><div class="count" id="lbCount"></div></div>
 <div class="toast" id="toast"></div>
@@ -358,6 +361,7 @@
 
   const WDS = '日月火水木金土';
   const ICON_CAM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.4-2h6.2l1.4 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.8" r="3.4"/></svg>';
+  const ICON_ADD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4H6.5A2.5 2.5 0 0 0 4 6.5v11A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5V11"/><path d="m4 16 4.5-4.5 5 5"/><path d="m14 15 1.5-1.5 4.5 4.5"/><path d="M19 3v6M16 6h6"/></svg>';
   const ICON_OK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.2 12.3 2.6 2.6 5-5.2"/></svg>';
   const ICON_LEAF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-8 5-13 14-14 0 9-5 14-13 14"/><path d="M5 19c3-4 6-7 10-9"/></svg>';
 
@@ -473,9 +477,9 @@
     if (!today) return;
 
     const now = todo.filter(t => !later(t)), next = todo.filter(later);
-    const extra = Object.values(js).filter(j => j.id.indexOf('room:') === 0 && j.state !== 'completing');   // 臨時の清掃で送信中
+    const extra = Object.values(js).filter(j => /^(room|add):/.test(j.id) && j.state !== 'completing');   // 新規の清掃・写真の追加で送信中
     let h = '<div class="sec"><b>今すぐ清掃</b><span>' + (now.length + extra.length) + '部屋</span></div><div class="card now">'
-      + (extra.length ? '<div class="grp"><div class="dh">臨時の清掃</div>' + extra.map(j => row({ id: j.id, room: j.room, due: '', deadline: '' }, j)).join('') + '</div>' : '')
+      + (extra.length ? '<div class="grp"><div class="dh">送信中</div>' + extra.map(j => row({ id: j.id, room: j.room, due: '', deadline: '' }, j)).join('') + '</div>' : '')
       + (now.length || extra.length ? timeline(now, false, live) : '<div class="none">' + ICON_LEAF + '今すぐ清掃する部屋はありません</div>') + '</div>';
     if (next.length) {
       h += '<div class="sec"><b>このあと清掃</b><span>OUT後に入れます</span></div><div class="card">' + timeline(next, true, live) + '</div>'
@@ -488,7 +492,7 @@
         + '<small>' + (x.last ? md(x.last.slice(0, 10)) + ' ' + hm(x.last) + ' 完了' : '空室・記録なし')
         + (x.nextIn === today ? '' : x.nextIn ? '・次のIN ' + md(x.nextIn) : '・次の予約なし') + '</small></div>'
         + (x.last ? '<span class="okchip">完了</span>' : '') + '</button>').join('') + '</div>'
-        + '<div class="secNote">押すと前回の写真・入室方法・臨時の清掃報告</div>';
+        + '<div class="secNote">押すと前回の写真・入室方法・清掃の報告</div>';
     }
     if (idle.stay.length) {
       h += '<div class="sec dim"><b>滞在中</b><span>' + idle.stay.length + '部屋</span></div><div class="card">'
@@ -514,7 +518,8 @@
   }
 
   // ---------------------------------------------------------------- 写真を選ぶ → 縮める → 保管
-  function pick(id) { picking = id; const p = document.getElementById('pick'); p.value = ''; p.click(); }
+  let pickRoom = '';
+  function pick(id, room) { picking = id; pickRoom = room || ''; const p = document.getElementById('pick'); p.value = ''; p.click(); }
 
   function shrink(file) {
     return new Promise((resolve, reject) => {
@@ -537,7 +542,7 @@
     const id = picking; picking = null;
     if (!files.length || !id) return;
     const t = tasks.find(x => x.id === id);
-    const job = { id: id, room: t ? t.room : id.replace(/^room:/, ''), photos: [], uploads: [], at: [], state: 'preparing', created: Date.now() };
+    const job = { id: id, room: t ? t.room : pickRoom || id.replace(/^room:/, ''), photos: [], uploads: [], at: [], state: 'preparing', created: Date.now() };
     await putJob(job); render();
     for (const f of files) {
       try { job.photos.push(await shrink(f)); } catch (e) { /* 読めない写真は飛ばす */ }
@@ -568,6 +573,12 @@
           };
           await Promise.all(Array.from({ length: PARALLEL }, worker));
           const room = job.id.indexOf('room:') === 0 ? job.id.slice(5) : '';
+          if (job.id.indexOf('add:') === 0) {   // 前回の清掃に写真を足すだけ（完了時刻は変えない）
+            job.state = 'completing'; await putJob(job);
+            setData(await api('addPhotos', { id: job.id.slice(4), uploads: job.uploads.filter(Boolean) }));
+            await delJob(job.id); render(); toast(job.room + ' 写真を追加しました');
+            continue;
+          }
           // 写真が全部届いたら、返事を待たずに画面上は完了にする（失敗したら元に戻して再送）
           job.state = 'completing'; await putJob(job);
           const n = job.uploads.filter(Boolean).length, t = tasks.find(x => x.id === job.id);
@@ -626,7 +637,7 @@
 
   // ---------------------------------------------------------------- 部屋の画面（入室方法）
   // 番号はNotion「🔑 キーボックス管理」から開くたびに読む（端末には残さない）
-  let roomOpen = null;
+  let roomOpen = null, addTo = null;   // addTo：「前回の清掃に写真を追加」の相手（id は add:ページID）
   async function openRoom(id) {
     const t = tasks.find(x => x.id === id);
     if (!t) return;
@@ -638,7 +649,8 @@
     body.innerHTML = (t.note ? '<div class="note" style="margin:0 0 14px">' + esc(t.note) + '</div>' : '')
       + '<div class="rsec">入室方法</div><div id="rKeys"><div class="key"><div class="knote">読み込み中…</div></div></div>';
     document.getElementById('roomSheet').classList.add('on');
-    document.getElementById('rPick').classList.remove('sub');
+    document.getElementById('rPick').classList.remove('sub', 'two');
+    document.getElementById('rAdd').hidden = true;
     loadKeys(t.room, id);
   }
   async function loadKeys(room, id) {
@@ -657,7 +669,7 @@
       if (!e.silent && roomOpen === id) document.getElementById('rKeys').innerHTML = '<div class="key"><div class="knote">入室方法を読み込めませんでした。電波の良い所で開き直してください</div></div>';
     }
   }
-  // 清掃の予定が無い部屋（完了済みの空室）：入室方法・前回の写真・臨時の清掃を報告
+  // 清掃の予定が無い部屋（完了済みの空室）：入室方法・前回の写真・前回の清掃に写真を追加・新規の清掃を報告
   async function openRoomFree(room) {
     const o = occ[room] || {};
     let lastDone = o.lastDone || '', lastId = o.lastId || '';
@@ -668,8 +680,10 @@
       : lastDone ? md(lastDone.slice(0, 10)) + ' ' + hm(lastDone) + ' 完了' : '清掃の記録なし';
     // 今日の完了だけ、ここから取り消せる（間違えて報告したとき）
     const undoable = lastId && tasks.some(t => t.id === lastId && t.done);
-    const btn = document.getElementById('rPick');
-    btn.innerHTML = '臨時の清掃を報告'; btn.classList.add('sub');
+    const btn = document.getElementById('rPick'), add = document.getElementById('rAdd');
+    btn.innerHTML = ICON_CAM + '<span>新規の清掃を<br>報告</span>'; btn.classList.add('sub', 'two');
+    add.innerHTML = ICON_ADD + '<span>前回の清掃に<br>写真を追加</span>'; add.hidden = !lastId;
+    addTo = lastId ? { id: 'add:' + lastId, room: room } : null;
     document.getElementById('rBody').innerHTML = (lastId ? '<button class="lastPhotos" data-act="lastPhotos" data-id="' + lastId + '">前回の清掃の写真を見る ›</button><div class="pgrid" id="rPhotos"></div>' : '')
       + '<div class="rsec">入室方法</div><div id="rKeys"><div class="key"><div class="knote">読み込み中…</div></div></div>'
       + (undoable ? '<button class="undoLink" data-act="undoLast" data-id="' + lastId + '">この完了を取り消す</button>' : '');
@@ -693,6 +707,7 @@
 
   function closeRoom() { roomOpen = null; document.getElementById('roomSheet').classList.remove('on'); document.getElementById('rKeys') && (document.getElementById('rBody').innerHTML = ''); }
   document.getElementById('rPick').addEventListener('click', () => { const id = roomOpen; closeRoom(); if (id) pick(id); });  // 予定の無い部屋は id が room:部屋名 ＝一覧外の清掃として報告
+  document.getElementById('rAdd').addEventListener('click', () => { const a = addTo; closeRoom(); if (a) pick(a.id, a.room); });
 
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
