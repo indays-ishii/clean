@@ -122,6 +122,11 @@
   .bigBtn.sub { background: transparent; color: var(--sub); border: 1px solid var(--line2); font-size: 15px; height: 48px; }
   .lastPhotos { display: block; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 14px;
     padding: 12px 14px; margin-bottom: 14px; font-size: 14px; font-weight: 600; color: var(--matcha-ink); }
+  .pgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: -6px 0 16px; }
+  .pgrid:empty { display: none; }
+  .pgrid button { padding: 0; border: 0; aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: var(--line); }
+  .pgrid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pgrid .pmsg { grid-column: 1 / -1; text-align: center; color: var(--sub); font-size: 13px; padding: 14px 0; }
   .okchip { flex: none; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--matcha-bg); color: var(--matcha-ink); }
   /* 4つの区分：今すぐ清掃／このあと清掃／清掃済み／滞在中（ishiiさん 2026-09-27） */
   .sec { display: flex; justify-content: space-between; align-items: baseline; margin: 24px 4px 8px; }
@@ -665,15 +670,25 @@
     const undoable = lastId && tasks.some(t => t.id === lastId && t.done);
     const btn = document.getElementById('rPick');
     btn.innerHTML = '臨時の清掃を報告'; btn.classList.add('sub');
-    document.getElementById('rBody').innerHTML = (lastId ? '<button class="lastPhotos" data-act="lastPhotos" data-id="' + lastId + '">前回の清掃の写真を見る ›</button>' : '')
+    document.getElementById('rBody').innerHTML = (lastId ? '<button class="lastPhotos" data-act="lastPhotos" data-id="' + lastId + '">前回の清掃の写真を見る ›</button><div class="pgrid" id="rPhotos"></div>' : '')
       + '<div class="rsec">入室方法</div><div id="rKeys"><div class="key"><div class="knote">読み込み中…</div></div></div>'
       + (undoable ? '<button class="undoLink" data-act="undoLast" data-id="' + lastId + '">この完了を取り消す</button>' : '');
     document.getElementById('roomSheet').classList.add('on');
     loadKeys(room, roomOpen);
   }
+  // 前回の写真を部屋の画面の中に一覧で出す（もう一度押すと閉じる）。1枚押すと大きく（ishiiさん 2026-09-27）
   async function lastPhotos(id) {
-    try { const d = await api('photos', { id: id }); if (!d.urls.length) { toast('写真はありません'); return; } lbUrls = d.urls; zoom(0); }
-    catch (e) { if (!e.silent) toast('写真を読み込めませんでした', true); }
+    const box = document.getElementById('rPhotos');
+    if (!box) return;
+    if (box.innerHTML) { box.innerHTML = ''; return; }
+    box.innerHTML = '<div class="pmsg">読み込み中…</div>';
+    try {
+      const d = await api('photos', { id: id });
+      if (!box.isConnected) return;
+      lbUrls = d.urls;
+      box.innerHTML = d.urls.length ? d.urls.map((u, i) => '<button data-act="zoom" data-id="' + i + '"><img src="' + esc(u) + '" loading="lazy" alt=""></button>').join('')
+                                    : '<div class="pmsg">写真はありません</div>';
+    } catch (e) { if (!e.silent && box.isConnected) box.innerHTML = '<div class="pmsg">写真を読み込めませんでした</div>'; }
   }
 
   function closeRoom() { roomOpen = null; document.getElementById('roomSheet').classList.remove('on'); document.getElementById('rKeys') && (document.getElementById('rBody').innerHTML = ''); }
