@@ -15,7 +15,7 @@
 <!--
   OCHAHOUSE 清掃会社用「清掃」（GitHub Pages: indays-ishii/clean）
   ishiiさん決定 2026-09-26：機能は完了報告だけ。デザインとシンプルさを磨く。
-  全部屋を4つに分けて出す（ishiiさん 2026-09-27）：今すぐ清掃（空室で未完了。カメラはここだけ）／このあと清掃（OUT前。OUT時刻を過ぎたら上へ）
+  全部屋を4つに分けて出す（ishiiさん 2026-09-27、名前は 9/28）：清掃待ち（空室で未完了。カメラはここだけ）／チェックアウト待ち（OUT前。OUT時刻を過ぎたら上へ）
   ／清掃済み（次のIN順。今日INは先頭）／滞在中（畳む）。上に今日INの準備ゲージ（管理画面と同じ）。
   使い方：部屋を押す → 写真をまとめて選ぶ（1回15枚ほど）→ 1枚ずつ送信 → 全部届いたら自動で完了。
   電波が切れても写真はこの端末に残り、つながったら続きから自動で送る。
@@ -46,6 +46,8 @@
   h1 { font-size: 26px; font-weight: 700; margin: 0; letter-spacing: .02em; }
   .sub { color: var(--sub); font-size: 13px; margin-top: 3px; }
   #sync { color: var(--muted); }
+  .sub.today { font-size: 17px; font-weight: 700; color: var(--ink); margin-top: 4px; }   /* 本日（9/28 月）を大きく（ishiiさん 2026-09-28） */
+  .sub.today #sync { font-size: 12px; font-weight: 400; }
 
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
 
@@ -147,7 +149,7 @@
   .pgrid img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .pgrid .pmsg { grid-column: 1 / -1; text-align: center; color: var(--sub); font-size: 13px; padding: 14px 0; }
   .okchip { flex: none; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--matcha-bg); color: var(--matcha-ink); }
-  /* 4つの区分：今すぐ清掃／このあと清掃／清掃済み／滞在中（ishiiさん 2026-09-27） */
+  /* 4つの区分：清掃待ち／チェックアウト待ち／清掃済み／滞在中（ishiiさん 2026-09-27） */
   .sec { display: flex; justify-content: space-between; align-items: baseline; margin: 24px 4px 8px; }
   .sec b { font-size: 16px; } .sec span { font-size: 12px; color: var(--sub); }
   .sec.dim b { color: var(--sub); }
@@ -224,7 +226,7 @@
 <body>
 <main>
   <header>
-    <div style="flex:1"><h1>清掃</h1><div class="sub"><span id="date">&nbsp;</span><span id="sync"></span></div></div>
+    <div style="flex:1"><h1>清掃</h1><div class="sub today"><span id="date">&nbsp;</span><span id="sync"></span></div></div>
     <div class="modesw" id="modeSw" hidden><span class="on">清掃</span><button data-act="toAdmin">管理</button></div>
   </header>
   <div class="sum" id="sum"></div>
@@ -422,7 +424,7 @@
   const md = (ymd) => (ymd.slice(5, 7) * 1) + '/' + (ymd.slice(8) * 1);
   const dwk = (ymd) => md(ymd) + '（' + WDS[new Date(ymd + 'T00:00:00+09:00').getDay()] + '）';
   const nowHm = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(11, 16);
-  // まだゲストがいる清掃（OUTが明日以降、または今日でOUT時刻の前）＝「このあと清掃」。OUT時刻を過ぎたら「今すぐ清掃」へ
+  // まだゲストがいる清掃（OUTが明日以降、または今日でOUT時刻の前）＝「チェックアウト待ち」。OUT時刻を過ぎたら「清掃待ち」へ
   const later = (t) => t.day > today || (t.day === today && !!t.out && nowHm() < t.out);
 
   function row(t, j, isLater) {
@@ -437,7 +439,7 @@
       + (j ? miniRing(j) : isLater ? '<span class="stay">滞在中</span>' : '<div class="cam">' + ICON_CAM + '</div>');
     if (j) return '<div class="row">' + inner + '</div>';
     // カメラのボタン＝そのまま写真を選ぶ。それ以外のところ＝部屋の画面（入室方法と「写真を選んで完了」）（ishiiさん 2026-09-27）
-    // 「このあと清掃」はカメラを出さない。ゲストが早く出たときは部屋の画面から報告できる
+    // 「チェックアウト待ち」はカメラを出さない。ゲストが早く出たときは部屋の画面から報告できる
     return '<div class="row" role="button" tabindex="0" data-act="room" data-id="' + t.id + '">'
       + inner.replace('<div class="cam">', '<button class="cam" data-act="pick" data-id="' + t.id + '" aria-label="' + esc(t.room) + ' の写真を選んで完了">').replace(/<\/div>$/, '</button>') + '</div>';
   }
@@ -491,7 +493,7 @@
     return { ready: ready, stay: stay };
   }
 
-  // 4つに分ける：今すぐ清掃／このあと清掃／清掃済み／滞在中（ishiiさん 2026-09-27）
+  // 4つに分ける：清掃待ち／チェックアウト待ち／清掃済み／滞在中（ishiiさん 2026-09-27）
   async function render() {
     const js = {}; (await jobs()).forEach(j => js[j.id] = j);
     const live = (id) => js[id] && js[id].state !== 'completing' ? js[id] : null;
@@ -502,11 +504,11 @@
 
     const now = todo.filter(t => !later(t)), next = todo.filter(later);
     const extra = Object.values(js).filter(j => /^(room|add):/.test(j.id) && j.state !== 'completing');   // 新規の清掃・写真の追加で送信中
-    let h = '<div class="sec"><b>今すぐ清掃</b><span>' + (now.length + extra.length) + '部屋</span></div><div class="card now">'
+    let h = '<div class="sec"><b>清掃待ち</b><span>' + (now.length + extra.length) + '部屋</span></div><div class="card now">'
       + (extra.length ? '<div class="grp"><div class="dh">送信中</div>' + extra.map(j => row({ id: j.id, room: j.room, due: '', deadline: '' }, j)).join('') + '</div>' : '')
-      + (now.length || extra.length ? timeline(now, false, live) : '<div class="none">' + ICON_LEAF + '今すぐ清掃する部屋はありません</div>') + '</div>';
+      + (now.length || extra.length ? timeline(now, false, live) : '<div class="none">' + ICON_LEAF + '清掃待ちの部屋はありません</div>') + '</div>';
     if (next.length) {
-      h += '<div class="sec"><b>このあと清掃</b><span>OUT後に入れます</span></div><div class="card">' + timeline(next, true, live) + '</div>'
+      h += '<div class="sec"><b>チェックアウト待ち</b><span>OUT後に入れます</span></div><div class="card">' + timeline(next, true, live) + '</div>'
         + '<div class="secNote">ゲストが早く出たときは、部屋を押すと報告できます</div>';
     }
     const idle = idleRooms(todo, done, js);
