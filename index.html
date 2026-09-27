@@ -156,6 +156,18 @@
   .empty svg { width: 44px; height: 44px; color: var(--matcha); margin-bottom: 8px; }
   .skel { height: 58px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); margin: 0 0 12px 26px; opacity: .7; }
   .skel.s { height: 14px; width: 90px; border: 0; background: var(--line); border-radius: 7px; margin-bottom: 8px; }
+  /* 期限順｜施設ごと */
+  .order { display: flex; background: var(--line); border-radius: 10px; padding: 3px; margin: 0 0 14px; }
+  .order button { flex: 1; border: 0; background: none; padding: 7px 0; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--sub); }
+  .order button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+  .fhead { display: flex; justify-content: space-between; align-items: baseline; margin: 16px 4px 7px; font-size: 15px; font-weight: 700; }
+  .fhead span + span { font-size: 12px; font-weight: 600; }
+  .fhead .r { color: var(--red); } .fhead .g { color: var(--matcha-ink); }
+  .row.idle .nm { color: var(--muted); font-weight: 500; }
+  .tm small { display: block; font-size: 11px; font-weight: 600; color: var(--sub); line-height: 1.2; }
+  button.row { width: 100%; border: 0; background: none; text-align: left; font: inherit; color: inherit; }
+  .row .rep { font-size: 13px; color: var(--sub); flex: none; }
+  .okchip { flex: none; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--matcha-bg); color: var(--matcha-ink); }
   /* 今日のまとめ（管理画面と同じ帯） */
   .sum { display: flex; background: var(--line); border-radius: 10px; padding: 7px 4px; margin: -8px 0 18px; font-size: 12px; }
   .sum:empty { display: none; }
@@ -263,14 +275,17 @@
   const CACHE_KEY = 'ochahouse-clean-list';
   const jstToday = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
   const nowIsoJst = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 19) + '+09:00';
+  // 並び：期限順（due）／施設ごと（fac）。前回の選択を覚える（ishiiさん 2026-09-27）
+  let occ = {}, order = 'due';
+  try { order = localStorage.getItem('ochahouse-clean-order') || 'due'; } catch (e) {}
   function setData(d) {
-    tasks = d.tasks; today = d.today; rooms = d.rooms || rooms;
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ tasks: tasks, today: today, rooms: rooms })); } catch (e) {}
+    tasks = d.tasks; today = d.today; rooms = d.rooms || rooms; occ = d.occ || occ;
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ tasks: tasks, today: today, rooms: rooms, occ: occ })); } catch (e) {}
   }
   function loadCache() {
     try {
       const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-      if (c && c.today === jstToday()) { tasks = c.tasks; today = c.today; rooms = c.rooms || []; return true; }
+      if (c && c.today === jstToday()) { tasks = c.tasks; today = c.today; rooms = c.rooms || []; occ = c.occ || {}; return true; }
     } catch (e) {}
     return false;
   }
@@ -437,7 +452,9 @@
     else if (t.day > today) sub = '<small>' + rel(t.day) + ' ' + (t.day.slice(5, 7) * 1) + '/' + (t.day.slice(8) * 1) + (t.out ? ' ' + t.out : '') + ' OUT後</small>';
     if (j) sub = jobNote(j);
     const note = t.note && !j ? '<span class="note">' + esc(t.note) + '</span>' : '';
-    const inner = '<div class="tm">' + (t.due ? hm(t.due) : '—') + '</div><div class="nm">' + esc(t.room) + sub + note + '</div>'
+    // 施設ごとの表示では、今日以外の期限に日付も添える（時刻だけだと今日に見えるため）
+    const tmx = t.due ? (t._fac && dueDay(t) !== today ? '<small>' + md(dueDay(t)) + '</small>' : '') + hm(t.due) : '—';
+    const inner = '<div class="tm">' + tmx + '</div><div class="nm">' + esc(t.room) + sub + note + '</div>'
       + (j ? miniRing(j) : '<div class="cam">' + ICON_CAM + '</div>');
     if (j) return '<div class="row">' + inner + '</div>';
     // カメラのボタン＝そのまま写真を選ぶ。それ以外のところ＝部屋の画面（入室方法と「写真を選んで完了」）（ishiiさん 2026-09-27）
@@ -452,6 +469,41 @@
     v.style.opacity = total && done ? 1 : 0;   // 0件のときに丸い端が点として残らないように
     document.getElementById('ringText').textContent = total ? done + '/' + total : '—';
   }
+
+  // 施設ごと：全部屋を部屋番号順に。まだの清掃・今日完了・滞在中・空室（空室は一覧外の清掃として報告できる）
+  const FACS = ['原宿', '麻布十番', '森下', '八広'];
+  function facView(js, live, todo, done) {
+    let h = '';
+    FACS.forEach(fac => {
+      const rs = rooms.filter(r => r.split(' ')[0] === fac);
+      if (!rs.length) return;
+      let open = 0, body = '';
+      rs.forEach(r => {
+        const num = r.split(' ')[1];
+        const ex = js['room:' + r];
+        if (ex && ex.state !== 'completing') body += row({ id: ex.id, room: num, due: '', deadline: '', day: today }, ex);
+        const ts = todo.filter(t => t.room === r);
+        open += ts.length;
+        ts.forEach(t => { body += row(Object.assign({}, t, { room: num, _fac: true }), live(t.id)); });
+        const ds = done.filter(t => t.room === r);
+        ds.forEach(t => {
+          body += '<button class="row fdone" data-act="view" data-id="' + t.id + '"><div class="tm"></div><div class="nm">' + num
+            + '<small>' + doneWhen(t) + '・' + (t.photos || 0) + '枚</small></div><span class="okchip">完了</span></button>';
+        });
+        if (!ts.length && !ds.length && !(ex && ex.state !== 'completing')) {
+          const o = occ[r] || {};
+          body += o.state === 'stay'
+            ? '<div class="row idle"><div class="tm"></div><div class="nm">' + num + '<small>滞在中（' + md(o.out) + ' OUT）</small></div></div>'
+            : '<button class="row idle" data-act="pick" data-id="room:' + esc(r) + '"><div class="tm"></div><div class="nm">' + num
+              + '<small>空室' + (o.nextIn ? '・次のIN ' + md(o.nextIn) : '') + '</small></div><span class="rep">報告 ›</span></button>';
+        }
+      });
+      h += '<div class="fhead"><span>' + fac + '</span><span class="' + (open ? 'r' : 'g') + '">' + (open ? '未完了 ' + open : 'すべて完了') + '</span></div>'
+        + '<div class="card">' + body + '</div>';
+    });
+    return h;
+  }
+  const md = (ymd) => (ymd.slice(5, 7) * 1) + '/' + (ymd.slice(8) * 1);
 
   async function render() {
     const js = {}; (await jobs()).forEach(j => js[j.id] = j);
@@ -470,6 +522,14 @@
       subText = '本日（' + mdw(today) + '）' + (mustToday.length || doneToday.length ? '' : next ? '・今日の締切なし' : '・清掃待ちなし');
     }
     document.getElementById('date').textContent = subText || '\u00a0';
+
+    const orderBar = today ? '<div class="order"><button data-act="order" data-v="due"' + (order === 'due' ? ' class="on"' : '') + '>期限順</button>'
+      + '<button data-act="order" data-v="fac"' + (order === 'fac' ? ' class="on"' : '') + '>施設ごと</button></div>' : '';
+    if (order === 'fac' && today) {
+      document.getElementById('list').innerHTML = orderBar + facView(js, live, todo, done);
+      document.getElementById('hint').textContent = '';
+      return;
+    }
 
     // 日付ごとにまとめる（期限の早い順。過ぎたものは「期限切れ」、期限なしは最後）
     const groups = new Map();
@@ -507,7 +567,7 @@
           + rest.map(r => '<button class="other" data-act="pick" data-id="room:' + esc(r) + '">' + esc(r) + '</button>').join('') + '</div>';
       }
     }
-    document.getElementById('list').innerHTML = h;
+    document.getElementById('list').innerHTML = orderBar + h;
     document.getElementById('hint').textContent = todo.length ? '部屋を押して、撮った写真をまとめて選ぶと完了します' : '';
   }
 
@@ -670,7 +730,7 @@
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
-    ({ toAdmin: toAdmin, room: openRoom, closeRoom: closeRoom, pick: pick, undo: undo, view: view, zoom: (i) => zoom(+i), closeViewer: closeViewer, closeLb: closeLb,
+    ({ order: (v) => { order = v; try { localStorage.setItem('ochahouse-clean-order', v); } catch (e) {} render(); }, toAdmin: toAdmin, room: openRoom, closeRoom: closeRoom, pick: pick, undo: undo, view: view, zoom: (i) => zoom(+i), closeViewer: closeViewer, closeLb: closeLb,
        others: () => { showOthers = !showOthers; render(); } })[b.dataset.act](b.dataset.id);
   });
   window.addEventListener('online', pump);
