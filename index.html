@@ -156,6 +156,8 @@
   .empty svg { width: 44px; height: 44px; color: var(--matcha); margin-bottom: 8px; }
   .skel { height: 58px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); margin: 0 0 12px 26px; opacity: .7; }
   .skel.s { height: 14px; width: 90px; border: 0; background: var(--line); border-radius: 7px; margin-bottom: 8px; }
+  .adminLink { display: block; width: fit-content; margin: 18px auto 0; padding: 8px 14px; border-radius: 999px; color: var(--sub);
+    font-size: 12px; text-decoration: none; border: 1px solid var(--line); }
   .hint { text-align: center; color: var(--muted); font-size: 12px; margin-top: 22px; line-height: 1.6; }
 
   /* 合言葉 */
@@ -201,6 +203,7 @@
   </header>
   <div id="list"><div class="skel s"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
   <div class="hint" id="hint"></div>
+  <a class="adminLink" href="admin/">管理画面へ ›</a>
 </main>
 
 <input type="file" id="pick" accept="image/*" multiple hidden>
