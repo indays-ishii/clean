@@ -156,8 +156,18 @@
   .empty svg { width: 44px; height: 44px; color: var(--matcha); margin-bottom: 8px; }
   .skel { height: 58px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); margin: 0 0 12px 26px; opacity: .7; }
   .skel.s { height: 14px; width: 90px; border: 0; background: var(--line); border-radius: 7px; margin-bottom: 8px; }
-  .adminLink { display: block; width: fit-content; margin: 18px auto 0; padding: 8px 14px; border-radius: 999px; color: var(--sub);
-    font-size: 12px; text-decoration: none; border: 1px solid var(--line); }
+  /* 今日のまとめ（管理画面と同じ帯） */
+  .sum { display: flex; background: var(--line); border-radius: 10px; padding: 7px 4px; margin: -8px 0 18px; font-size: 12px; }
+  .sum:empty { display: none; }
+  .sum div { flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 5px; }
+  .sum div + div { border-left: 1px solid var(--line2); }
+  .sum b { font-size: 16px; font-variant-numeric: tabular-nums; }
+  .sum .g { color: var(--matcha-ink); } .sum .r { color: var(--red); } .sum .k { color: var(--sub); }
+  /* 運営メンバーだけ：清掃｜管理 の切り替え（合言葉は聞かない） */
+  .modesw { display: flex; background: var(--line); border-radius: 999px; padding: 3px; flex: none; }
+  .modesw[hidden] { display: none; }
+  .modesw span, .modesw button { border: 0; background: none; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 999px; color: var(--sub); }
+  .modesw .on { background: var(--card); color: var(--ink); }
   .hint { text-align: center; color: var(--muted); font-size: 12px; margin-top: 22px; line-height: 1.6; }
 
   /* 合言葉 */
@@ -194,16 +204,13 @@
 <body>
 <main>
   <header>
-    <svg class="ring" viewBox="0 0 62 62" aria-hidden="true">
-      <circle class="track" cx="31" cy="31" r="25"/>
-      <circle class="val" id="ringVal" cx="31" cy="31" r="25" stroke-dasharray="0 158" transform="rotate(-90 31 31)"/>
-      <text id="ringText" x="31" y="36" text-anchor="middle"></text>
-    </svg>
-    <div><h1>清掃</h1><div class="sub"><span id="date">&nbsp;</span><span id="sync"></span></div></div>
+    <div style="flex:1"><h1>清掃</h1><div class="sub"><span id="date">&nbsp;</span><span id="sync"></span></div></div>
+    <div class="modesw" id="modeSw" hidden><span class="on">清掃</span><button data-act="toAdmin">管理</button></div>
   </header>
+  <div class="sum" id="sum"></div>
   <div id="list"><div class="skel s"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
   <div class="hint" id="hint"></div>
-  <a class="adminLink" href="admin/">管理画面へ ›</a>
+
 </main>
 
 <input type="file" id="pick" accept="image/*" multiple hidden>
@@ -277,11 +284,22 @@
     document.getElementById('passVeil').classList.add('on');
     setTimeout(() => document.getElementById('passInput').focus(), 60);
   }
+  // 合言葉の種類（運営メンバーなら 清掃｜管理 を切り替えられる）
+  const ROLE_KEY = 'ochahouse-role', VIEW_KEY = 'ochahouse-view';
+  const lsGet = (k) => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
+  const lsSet = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (e) {} };
+  function showSwitch() { document.getElementById('modeSw').hidden = lsGet(ROLE_KEY) !== 'admin'; }
+  async function checkRole() {
+    if (lsGet(ROLE_KEY)) { showSwitch(); return; }
+    try { lsSet(ROLE_KEY, (await api('whoami')).role); showSwitch(); } catch (e) {}
+  }
+  function toAdmin() { lsSet(VIEW_KEY, 'admin'); location.href = 'admin/'; }
+
   function savePass(ev) {
     ev.preventDefault();
     const v = document.getElementById('passInput').value.trim();
     if (!v) return;
-    setPass(v); passAsked = false;
+    setPass(v); passAsked = false; lsSet(ROLE_KEY, '');
     document.getElementById('passVeil').classList.remove('on');
     load(); pump();
   }
@@ -443,12 +461,13 @@
     // リング：今日が締切の部屋（過ぎたものも含む）だけを数える。先の締切の部屋を前倒しで終えても数えない（ishiiさん 2026-09-26）
     const mustToday = todo.filter(t => t.due && dueDay(t) <= today);
     const doneToday = done.filter(t => t.due && dueDay(t) <= today);
-    setRing(doneToday.length, mustToday.length + doneToday.length);
+    document.getElementById('sum').innerHTML = today ? '<div><span class="k">今日IN</span><b>' + (mustToday.length + doneToday.length) + '</b></div>'
+      + '<div><span class="g">完了</span><b class="g">' + doneToday.length + '</b></div>'
+      + '<div><span class="r">未完了</span><b class="r">' + mustToday.length + '</b></div>' : '';
     let subText = '';
     if (today) {
       const next = todo.filter(t => t.due).sort((a, b) => a.due < b.due ? -1 : 1)[0];
-      subText = mdw(today) + '・' + (mustToday.length ? '今日締切あと' + mustToday.length + '部屋'
-        : doneToday.length ? '今日締切の分は完了' : next ? '今日の締切なし' : '清掃待ちなし');
+      subText = '本日（' + mdw(today) + '）' + (mustToday.length || doneToday.length ? '' : next ? '・今日の締切なし' : '・清掃待ちなし');
     }
     document.getElementById('date').textContent = subText || '\u00a0';
 
@@ -496,7 +515,7 @@
     if (!getPass()) { askPass(); return; }
     const sync = document.getElementById('sync');
     if (tasks.length || today) sync.textContent = '・更新中';
-    try { setData(await api('list')); render(); }
+    try { setData(await api('list')); render(); checkRole(); }
     catch (e) {
       if (e.silent) return;
       if (!today) document.getElementById('list').innerHTML = '<div class="empty">読み込めませんでした<br>電波の良い所で開き直してください</div>';
@@ -651,12 +670,15 @@
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
-    ({ room: openRoom, closeRoom: closeRoom, pick: pick, undo: undo, view: view, zoom: (i) => zoom(+i), closeViewer: closeViewer, closeLb: closeLb,
+    ({ toAdmin: toAdmin, room: openRoom, closeRoom: closeRoom, pick: pick, undo: undo, view: view, zoom: (i) => zoom(+i), closeViewer: closeViewer, closeLb: closeLb,
        others: () => { showOthers = !showOthers; render(); } })[b.dataset.act](b.dataset.id);
   });
   window.addEventListener('online', pump);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { load(); pump(); } });
   setInterval(() => { if (!document.hidden && !passAsked) { load(); pump(); } }, 60000);
+  // 運営メンバーが前回「管理」を見ていたら、そのまま管理画面を開く
+  if (lsGet(ROLE_KEY) === 'admin' && lsGet(VIEW_KEY) === 'admin' && getPass()) location.replace('admin/');
+  showSwitch();
   if (loadCache()) render();
   load(); pump();
 </script>
