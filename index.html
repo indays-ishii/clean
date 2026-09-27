@@ -15,13 +15,14 @@
 <!--
   OCHAHOUSE 清掃会社用「清掃」（GitHub Pages: indays-ishii/clean）
   ishiiさん決定 2026-09-26：機能は完了報告だけ。デザインとシンプルさを磨く。
-  まだ完了していない部屋を期限（＝次のゲストのチェックイン）の早い順にすべて出す。明日OUTの部屋も前日昼から出て、ボタンはいつでも押せる。
+  全部屋を4つに分けて出す（ishiiさん 2026-09-27）：今すぐ清掃（空室で未完了。カメラはここだけ）／このあと清掃（OUT前。OUT時刻を過ぎたら上へ）
+  ／清掃済み（次のIN順。今日INは先頭）／滞在中（畳む）。上に今日INの準備ゲージ（管理画面と同じ）。
   使い方：部屋を押す → 写真をまとめて選ぶ（1回15枚ほど）→ 1枚ずつ送信 → 全部届いたら自動で完了。
   電波が切れても写真はこの端末に残り、つながったら続きから自動で送る。
   データの読み書きは Cloudflare Workers の受け口 API_URL（ochahouse-ops/cleaning-worker）。合言葉はこのページに書かない。
 -->
 <style>
-  /* デザイン：K案（日付ごとの時間軸）＋今日の達成度リング。抹茶色は「押すところ」、赤は「今日締切」だけ（ishiiさん 2026-09-26） */
+  /* デザイン：4つの区分＋日付ごとの時間軸（K案）＋今日INの準備ゲージ。抹茶色は「押すところ」、赤は「今日締切」だけ（ishiiさん 2026-09-26） */
   :root {
     --bg: #f6f6f2; --card: #ffffff; --ink: #1d1f1b; --sub: #6d7169; --muted: #a4a79f; --line: #e6e7e1; --line2: #d5d7cf;
     --matcha: #5b8e3e; --matcha-ink: #3f6a28; --matcha-bg: #edf3e6;
@@ -40,30 +41,13 @@
     padding: calc(22px + env(safe-area-inset-top)) 18px calc(40px + env(safe-area-inset-bottom)); }
   button { font: inherit; color: inherit; }
 
-  /* 見出し＋リング */
+  /* 見出し */
   header { display: flex; align-items: center; gap: 14px; margin: 4px 2px 22px; }
-  .ring { width: 62px; height: 62px; flex: none; }
-  .ring circle { fill: none; stroke-width: 7; }
-  .ring .track { stroke: var(--line); }
-  .ring .val { stroke: var(--matcha); stroke-linecap: round; transition: stroke-dasharray .6s cubic-bezier(.2,.8,.2,1); }
-  .ring text { fill: var(--ink); font-size: 15px; font-weight: 600; fill: var(--ink); font-variant-numeric: tabular-nums; }
   h1 { font-size: 26px; font-weight: 700; margin: 0; letter-spacing: .02em; }
   .sub { color: var(--sub); font-size: 13px; margin-top: 3px; }
   #sync { color: var(--muted); }
 
-  /* 時間軸 */
-  .tl { position: relative; padding-left: 26px; }
-  .tl::before { content: ""; position: absolute; left: 6px; top: 10px; bottom: 10px; width: 2px; background: var(--line); border-radius: 2px; }
-  .day { position: relative; margin-bottom: 20px; }
-  .dot { position: absolute; left: -26px; top: 2px; width: 14px; height: 14px; border-radius: 50%;
-    background: var(--bg); border: 2px solid var(--matcha); }
-  .day.hot .dot { background: var(--red); border-color: var(--red); }
-  .day.none .dot { border-color: var(--line2); }
-  .dl { font-size: 13px; font-weight: 600; margin: 0 0 7px 2px; color: var(--ink); }
-  .day.hot .dl { color: var(--red); }
-  .day.none .dl { color: var(--sub); }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
-  .day.hot .card { border-color: var(--red-line); }
 
   .row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 12px 13px 14px; border: 0; background: none;
     text-align: left; transition: background .15s; }
@@ -89,9 +73,8 @@
   .bigBtn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 56px; border: 0; border-radius: 16px;
     background: var(--matcha); color: #fff; font-size: 17px; font-weight: 700; }
   .bigBtn svg { width: 22px; height: 22px; }
-  .tm { width: 46px; flex: none; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
-  .day.hot .tm { color: var(--red); }
-  .day.none .tm { color: var(--muted); }
+  .tm { width: 46px; flex: none; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .01em; text-align: center; }
+  .tm small { display: block; font-size: 10px; font-weight: 400; color: var(--sub); line-height: 1.2; }
   .nm { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; line-height: 1.3; }
   .nm small { display: block; font-size: 12px; font-weight: 400; color: var(--sub); margin-top: 2px; }
   .nm small.warn { color: var(--red); }
@@ -107,32 +90,17 @@
   .mini.wait .val { stroke: var(--red); }
   .mini text { font-size: 10px; font-weight: 600; fill: var(--sub); }
 
-  /* 今日完了 */
-  .doneBox { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 14px; }
-  .cap { font-size: 12px; color: var(--sub); margin: 0 0 4px 2px; }
-  .done { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 2px; border: 0; background: none; text-align: left; }
-  .done .ok { width: 22px; height: 22px; flex: none; color: var(--matcha); }
-  .done .n { flex: 1; font-size: 15px; color: var(--sub); }
-  .done .m { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-
-  /* 完了した部屋の写真 */
+  /* 部屋の画面・写真を大きく */
   .viewer { position: fixed; inset: 0; z-index: 12; background: var(--bg); display: none; flex-direction: column;
     padding-top: env(safe-area-inset-top); }
   .viewer.on { display: flex; }
   .vhead { display: flex; align-items: center; gap: 12px; padding: 14px 16px 12px; border-bottom: 1px solid var(--line); }
-  .vhead .ok { width: 26px; height: 26px; color: var(--matcha); flex: none; }
   .vhead .t { flex: 1; min-width: 0; }
   .vhead .t b { display: block; font-size: 18px; }
   .vhead .t span { font-size: 12px; color: var(--sub); }
   .x { width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--line); color: var(--ink); flex: none;
     display: flex; align-items: center; justify-content: center; }
   .x svg { width: 18px; height: 18px; }
-  .grid { flex: 1; overflow-y: auto; padding: 12px 12px 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; align-content: start; }
-  .grid button { padding: 0; border: 0; aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: var(--line); }
-  .grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .grid .msg { grid-column: 1 / -1; text-align: center; color: var(--sub); font-size: 14px; padding: 40px 0; }
-  .vfoot { padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); text-align: center; }
-  .vfoot button { border: 0; background: none; color: var(--red); font-size: 14px; padding: 10px; }
   .lb { position: fixed; inset: 0; z-index: 13; background: #000; display: none; }
   .lb.on { display: block; }
   .lb .strip { display: flex; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
@@ -143,41 +111,51 @@
   .lb .count { position: absolute; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); text-align: center;
     color: rgba(255,255,255,.8); font-size: 13px; font-variant-numeric: tabular-nums; }
 
-  /* 表示以外の施設 */
-  .othersBtn { display: block; width: 100%; margin-top: 18px; height: 48px; border-radius: 14px; border: 1px dashed var(--line2);
-    background: transparent; color: var(--sub); font-size: 14px; }
-  .others { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-  .other { height: 52px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); font-size: 15px; font-weight: 600; }
-  .other:active { background: var(--matcha-bg); }
-  .othersNote { grid-column: 1 / -1; color: var(--sub); font-size: 12px; text-align: center; margin-bottom: 2px; }
-
   /* 空・読み込み中 */
   .empty { text-align: center; padding: 70px 0 30px; color: var(--sub); font-size: 15px; line-height: 1.8; }
   .empty svg { width: 44px; height: 44px; color: var(--matcha); margin-bottom: 8px; }
-  .skel { height: 58px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); margin: 0 0 12px 26px; opacity: .7; }
+  .skel { height: 58px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); margin: 0 0 12px; opacity: .7; }
   .skel.s { height: 14px; width: 90px; border: 0; background: var(--line); border-radius: 7px; margin-bottom: 8px; }
-  /* 期限順｜施設ごと */
-  .order { display: flex; background: var(--line); border-radius: 10px; padding: 3px; margin: 0 0 14px; }
-  .order button { flex: 1; border: 0; background: none; padding: 7px 0; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--sub); }
-  .order button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
-  .fhead { display: flex; justify-content: space-between; align-items: baseline; margin: 16px 4px 7px; font-size: 15px; font-weight: 700; }
-  .fhead span + span { font-size: 12px; font-weight: 600; }
-  .fhead .r { color: var(--red); } .fhead .g { color: var(--matcha-ink); }
   .row.idle .nm { color: var(--muted); font-weight: 500; }
-  .tm small { display: block; font-size: 11px; font-weight: 600; color: var(--sub); line-height: 1.2; }
   button.row { width: 100%; border: 0; background: none; text-align: left; font: inherit; color: inherit; }
-  .row .rep { font-size: 13px; color: var(--sub); flex: none; }
+  .row .rep { font-size: 13px; color: var(--sub); flex: none; margin-left: auto; }
   .bigBtn.sub { background: transparent; color: var(--sub); border: 1px solid var(--line2); font-size: 15px; height: 48px; }
   .lastPhotos { display: block; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 14px;
     padding: 12px 14px; margin-bottom: 14px; font-size: 14px; font-weight: 600; color: var(--matcha-ink); }
   .okchip { flex: none; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--matcha-bg); color: var(--matcha-ink); }
-  /* 今日のまとめ（管理画面と同じ帯） */
-  .sum { display: flex; background: var(--line); border-radius: 10px; padding: 7px 4px; margin: -8px 0 18px; font-size: 12px; }
+  /* 4つの区分：今すぐ清掃／このあと清掃／清掃済み／滞在中（ishiiさん 2026-09-27） */
+  .sec { display: flex; justify-content: space-between; align-items: baseline; margin: 24px 4px 8px; }
+  .sec b { font-size: 16px; } .sec span { font-size: 12px; color: var(--sub); }
+  .sec.dim b { color: var(--sub); }
+  .card.now { border: 1.5px solid var(--matcha); }
+  .dh { font-size: 12px; font-weight: 700; color: var(--sub); padding: 7px 14px; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .grp + .grp .dh { border-top: 1px solid var(--line); }
+  .grp.hot .dh, .grp.hot .tm { color: var(--red); }
+  .fac { display: block; font-size: 11px; font-weight: 500; color: var(--sub); }
+  .tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px; margin-left: 6px; vertical-align: 2px; }
+  .tag.early { background: var(--amber-bg); color: var(--amber); }
+  .tag.inT { background: var(--matcha-bg); color: var(--matcha-ink); }
+  .stay { flex: none; font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 999px; background: var(--amber-bg); color: var(--amber); }
+  .secNote { font-size: 11px; color: var(--muted); margin: 6px 4px 0; }
+  .none { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 18px; color: var(--sub); font-size: 14px; }
+  .none svg { width: 22px; height: 22px; color: var(--matcha); }
+  .undoLink { display: block; margin: 18px auto 0; border: 0; background: none; color: var(--red); font-size: 14px; padding: 10px; }
+  /* 今日のまとめ：丸いゲージ（管理画面と同じ） */
+  .sum { display: flex; align-items: center; gap: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px; margin: -8px 0 4px; }
   .sum:empty { display: none; }
-  .sum div { flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 5px; }
-  .sum div + div { border-left: 1px solid var(--line2); }
-  .sum b { font-size: 16px; font-variant-numeric: tabular-nums; }
-  .sum .g { color: var(--matcha-ink); } .sum .r { color: var(--red); } .sum .k { color: var(--sub); }
+  .gring { width: 84px; height: 84px; flex: none; }
+  .gring circle { fill: none; stroke-width: 8; }
+  .gring .track { stroke: var(--line); }
+  .gring .val { stroke: var(--matcha); stroke-linecap: round; transition: stroke-dasharray .6s cubic-bezier(.2,.8,.2,1); }
+  .gring .n { font-size: 21px; font-weight: 700; fill: var(--ink); font-variant-numeric: tabular-nums; }
+  .gring .n tspan { font-size: 13px; font-weight: 600; fill: var(--sub); }
+  .gring .l { font-size: 10px; fill: var(--sub); }
+  .glg { flex: 1; font-size: 13px; }
+  .gcap { font-size: 12px; color: var(--sub); margin-bottom: 4px; }
+  .gl { display: flex; align-items: center; gap: 8px; margin: 4px 0; color: var(--sub); }
+  .gl i { width: 9px; height: 9px; border-radius: 50%; background: var(--line2); }
+  .gl b { margin-left: auto; font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .gl.g i { background: var(--matcha); } .gl.r, .gl.r b { color: var(--red); } .gl.r i { background: var(--red); }
   /* 運営メンバーだけ：清掃｜管理 の切り替え（合言葉は聞かない） */
   .modesw { display: flex; background: var(--line); border-radius: 999px; padding: 3px; flex: none; }
   .modesw[hidden] { display: none; }
@@ -246,12 +224,6 @@
     <button class="no" id="sheetNo">やめる</button>
   </div>
 </div>
-<div class="viewer" id="viewer">
-  <div class="vhead"><span class="ok" id="vOk"></span><div class="t"><b id="vRoom"></b><span id="vWhen"></span></div>
-    <button class="x" data-act="closeViewer" aria-label="閉じる"></button></div>
-  <div class="grid" id="vGrid"></div>
-  <div class="vfoot"><button id="vUndo">完了を取り消す</button></div>
-</div>
 <div class="viewer" id="roomSheet">
   <div class="vhead"><div class="t"><b id="rRoom"></b><span id="rWhen"></span></div>
     <button class="x" data-act="closeRoom" aria-label="閉じる"></button></div>
@@ -271,17 +243,14 @@
   const MAX_SIDE = 1024, QUALITY = 0.5;          // 画質は低くてよい（ishiiさん 2026-09-26）。軽いほど速く送れる
   const PARALLEL = 5;                            // 1枚ずつ、5本同時に送る（受け口は Cloudflare Workers で速い）
   const UPLOAD_TTL = 50 * 60 * 1000;             // Notionに預けた写真は1時間で消えるので、50分を過ぎたら送り直す
-    let tasks = [], rooms = [], today = '', picking = null, running = false, passAsked = false, showOthers = false;
+    let tasks = [], rooms = [], today = '', picking = null, running = false, passAsked = false;
 
   // 受け口（Google Apps Script）は普段1〜2秒、ときどき10秒以上かかる。
   // 前回の一覧をこの端末に覚えておき、開いた瞬間に出す（最新は裏で取り直して差し替える）。
   const CACHE_KEY = 'ochahouse-clean-list';
   const jstToday = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
   const nowIsoJst = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 19) + '+09:00';
-  // 並び：期限順（due）／施設ごと（fac）。前回の選択を覚える（ishiiさん 2026-09-27）
-  let occ = {}, order = 'due', summary = null;
-  try { order = localStorage.getItem('ochahouse-clean-order') || 'due'; } catch (e) {}
-  if (order !== 'fac') order = 'due';   // 壊れた値が残っていても期限順に戻す
+  let occ = {}, summary = null, showStay = false;
   function setData(d) {
     tasks = d.tasks; today = d.today; rooms = d.rooms || rooms; occ = d.occ || occ; summary = d.summary || null;
     try { localStorage.setItem(CACHE_KEY, JSON.stringify({ tasks: tasks, today: today, rooms: rooms, occ: occ, summary: summary })); } catch (e) {}
@@ -394,32 +363,9 @@
   }
   const dueDay = (t) => (t.due || '').slice(0, 10);
   const ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
-  // 完了した日時：9/26 土 20:17 完了
-  function doneWhen(t) { return t.doneAt ? mdw(t.doneAt.slice(0, 10)) + ' ' + hm(t.doneAt) + ' 完了' : '完了'; }
 
-  // ---------------------------------------------------------------- 完了した部屋の写真を見る（取り消しもここから）
-  let viewing = null, lbUrls = [];
-  async function view(id) {
-    const t = tasks.find(x => x.id === id);
-    if (!t) return;
-    if (id.indexOf('tmp-') === 0) { toast('送信の仕上げ中です。数秒後にもう一度押してください', true); return; }
-    viewing = id;
-    document.getElementById('vOk').innerHTML = ICON_OK;
-    document.getElementById('vRoom').textContent = t.room;
-    document.getElementById('vWhen').textContent = doneWhen(t) + '・写真' + (t.photos || 0) + '枚';
-    const g = document.getElementById('vGrid');
-    g.innerHTML = t.photos ? Array.from({ length: t.photos }, () => '<button></button>').join('') : '<div class="msg">写真はありません</div>';
-    document.querySelectorAll('.viewer .x, .lb .x').forEach(b => b.innerHTML = ICON_X);
-    document.getElementById('viewer').classList.add('on');
-    try {
-      const d = await api('photos', { id: id });
-      if (viewing !== id) return;
-      lbUrls = d.urls;
-      g.innerHTML = d.urls.length ? d.urls.map((u, i) => '<button data-act="zoom" data-id="' + i + '"><img src="' + esc(u) + '" loading="lazy" alt=""></button>').join('')
-                                  : '<div class="msg">写真はありません</div>';
-    } catch (e) { if (!e.silent && viewing === id) g.innerHTML = '<div class="msg">写真を読み込めませんでした</div>'; }
-  }
-  function closeViewer() { viewing = null; document.getElementById('viewer').classList.remove('on'); }
+  // ---------------------------------------------------------------- 写真を大きく見る
+  let lbUrls = [];
   function zoom(i) {
     const st = document.getElementById('lbStrip');
     st.innerHTML = lbUrls.map(u => '<div><img src="' + esc(u) + '" alt=""></div>').join('');
@@ -429,13 +375,6 @@
     st.onscroll = cnt; cnt();
   }
   function closeLb() { document.getElementById('lb').classList.remove('on'); }
-  document.getElementById('vUndo').addEventListener('click', async () => {
-    const id = viewing; if (!id) return;
-    const t = tasks.find(x => x.id === id);
-    if (!t || !(await ask(t.room + ' の完了を\n取り消しますか？\n（送った写真も外れます）', '取り消す'))) return;
-    closeViewer(); undo(id, true);
-  });
-
   function miniRing(j) {
     const all = j.photos.length || 1, sent = j.uploads.filter(Boolean).length, C = 2 * Math.PI * 16;
     return '<svg class="mini' + (j.state === 'waiting' ? ' wait' : '') + '" viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="16"/>'
@@ -449,134 +388,112 @@
     return '<small>' + (sent === j.photos.length ? '完了にしています…' : '写真を送っています…') + '</small>';
   }
 
-  function row(t, j) {
+  // 部屋名：施設を小さく上に、部屋番号を大きく
+  const splitRoom = (r) => { const i = r.indexOf(' '); return i < 0 ? ['', r] : [r.slice(0, i), r.slice(i + 1)]; };
+  function roomName(r) { const f = splitRoom(r); return (f[0] ? '<span class="fac">' + esc(f[0]) + '</span>' : '') + esc(f[1]); }
+  const md = (ymd) => (ymd.slice(5, 7) * 1) + '/' + (ymd.slice(8) * 1);
+  const dwk = (ymd) => md(ymd) + '（' + WDS[new Date(ymd + 'T00:00:00+09:00').getDay()] + '）';
+  const nowHm = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(11, 16);
+  // まだゲストがいる清掃（OUTが明日以降、または今日でOUT時刻の前）＝「このあと清掃」。OUT時刻を過ぎたら「今すぐ清掃」へ
+  const later = (t) => t.day > today || (t.day === today && !!t.out && nowHm() < t.out);
+
+  function row(t, j, isLater) {
     const early = /アーリー/.test(t.deadline);
     let sub = '';
-    if (early) sub = '<small class="warn">アーリーチェックイン</small>';
-    else if (t.day > today) sub = '<small>' + rel(t.day) + ' ' + (t.day.slice(5, 7) * 1) + '/' + (t.day.slice(8) * 1) + (t.out ? ' ' + t.out : '') + ' OUT後</small>';
-    if (j) sub = jobNote(j);
+    if (t.day) sub = isLater ? ((['今日', '明日'].includes(rel(t.day)) ? rel(t.day) + ' ' : '') + md(t.day) + (t.out ? ' ' + t.out : '') + ' OUT後')
+                             : '空室・' + (t.day === today ? '今日' : md(t.day)) + (t.out ? ' ' + t.out : '') + ' OUT';
+    sub = j ? jobNote(j) : sub ? '<small>' + sub + '</small>' : '';
     const note = t.note && !j ? '<span class="note">' + esc(t.note) + '</span>' : '';
-    // 施設ごとの表示では、今日以外の期限に日付も添える（時刻だけだと今日に見えるため）
-    const tmx = t.due ? (t._fac && dueDay(t) !== today ? '<small>' + md(dueDay(t)) + '</small>' : '') + hm(t.due) : '—';
-    const inner = '<div class="tm">' + tmx + '</div><div class="nm">' + esc(t.room) + sub + note + '</div>'
-      + (j ? miniRing(j) : '<div class="cam">' + ICON_CAM + '</div>');
+    const inner = '<div class="tm">' + (t.due ? hm(t.due) + '<small>まで</small>' : '—') + '</div><div class="nm">' + roomName(t.room)
+      + (early ? '<span class="tag early">アーリーIN</span>' : '') + sub + note + '</div>'
+      + (j ? miniRing(j) : isLater ? '<span class="stay">滞在中</span>' : '<div class="cam">' + ICON_CAM + '</div>');
     if (j) return '<div class="row">' + inner + '</div>';
     // カメラのボタン＝そのまま写真を選ぶ。それ以外のところ＝部屋の画面（入室方法と「写真を選んで完了」）（ishiiさん 2026-09-27）
+    // 「このあと清掃」はカメラを出さない。ゲストが早く出たときは部屋の画面から報告できる
     return '<div class="row" role="button" tabindex="0" data-act="room" data-id="' + t.id + '">'
       + inner.replace('<div class="cam">', '<button class="cam" data-act="pick" data-id="' + t.id + '" aria-label="' + esc(t.room) + ' の写真を選んで完了">').replace(/<\/div>$/, '</button>') + '</div>';
   }
 
-  function setRing(done, total) {
-    const C = 2 * Math.PI * 25;
-    const v = document.getElementById('ringVal');
-    v.setAttribute('stroke-dasharray', (total ? C * done / total : 0).toFixed(1) + ' ' + C.toFixed(1));
-    v.style.opacity = total && done ? 1 : 0;   // 0件のときに丸い端が点として残らないように
-    document.getElementById('ringText').textContent = total ? done + '/' + total : '—';
-  }
-
-  // 施設ごと：全部屋を部屋番号順に。まだの清掃・今日完了・滞在中・空室（空室は一覧外の清掃として報告できる）
-  const FACS = ['原宿', '麻布十番', '森下', '八広'];
-  function facView(js, live, todo, done) {
+  // 期限の日付ごとに区切り、左に期限の時刻（K案の時間軸。赤は期限が今日・過ぎたものだけ）
+  function timeline(list, isLater, live) {
+    const groups = new Map();
+    const key = (t) => !t.due ? 'none' : dueDay(t) < today ? 'over' : dueDay(t);
+    list.slice().sort((a, b) => (a.due || '9999') < (b.due || '9999') ? -1 : 1).forEach(t => {
+      const k = key(t); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t);
+    });
     let h = '';
-    FACS.forEach(fac => {
-      const rs = rooms.filter(r => r.split(' ')[0] === fac);
-      if (!rs.length) return;
-      let open = 0, body = '';
-      rs.forEach(r => {
-        const num = r.split(' ')[1];
-        const ex = js['room:' + r];
-        if (ex && ex.state !== 'completing') body += row({ id: ex.id, room: num, due: '', deadline: '', day: today }, ex);
-        const ts = todo.filter(t => t.room === r);
-        open += ts.length;
-        ts.forEach(t => { body += row(Object.assign({}, t, { room: num, _fac: true }), live(t.id)); });
-        const ds = done.filter(t => t.room === r);
-        ds.forEach(t => {
-          body += '<button class="row fdone" data-act="view" data-id="' + t.id + '"><div class="tm"></div><div class="nm">' + num
-            + '<small>' + doneWhen(t) + '・' + (t.photos || 0) + '枚</small></div><span class="okchip">完了</span></button>';
-        });
-        if (!ts.length && !ds.length && !(ex && ex.state !== 'completing')) {
-          // 清掃会社目線の3つだけ：未完了（上）／完了（前の日の完了も）／滞在中（ishiiさん 2026-09-27）
-          const o = occ[r] || {};
-          body += o.state === 'stay'
-            ? '<div class="row idle"><div class="tm"></div><div class="nm">' + num + '<small>滞在中（' + md(o.out) + ' OUT）</small></div></div>'
-            : '<button class="row fdone" data-act="roomFree" data-id="' + esc(r) + '"><div class="tm"></div><div class="nm">' + num
-              + '<small>' + (o.lastDone ? md(o.lastDone.slice(0, 10)) + ' ' + hm(o.lastDone) + ' 完了' : '記録なし') + '</small></div>'
-              + (o.lastDone ? '<span class="okchip">完了</span>' : '') + '</button>';
-        }
-      });
-      h += '<div class="fhead"><span>' + fac + '</span><span class="' + (open ? 'r' : 'g') + '">' + (open ? '未完了 ' + open : 'すべて完了') + '</span></div>'
-        + '<div class="card">' + body + '</div>';
+    groups.forEach((ts, k) => {
+      const label = k === 'over' ? '期限切れ' : k === 'none' ? '次の予約なし' : k === today ? '本日 ' + dwk(k) : (rel(k) === '明日' ? '明日 ' : '') + dwk(k);
+      h += '<div class="grp' + (k === 'over' || k === today ? ' hot' : '') + '"><div class="dh">' + label + '</div>' + ts.map(t => row(t, live(t.id), isLater)).join('') + '</div>';
     });
     return h;
   }
-  const md = (ymd) => (ymd.slice(5, 7) * 1) + '/' + (ymd.slice(8) * 1);
 
+  // 今日のまとめ：今日INの部屋のうち準備OKの割合を丸いゲージで（管理画面と同じ数。ishiiさん 2026-09-27）
+  function gauge(sm) {
+    const C = 2 * Math.PI * 34, rest = sm.in - sm.done, late = sm.late || 0;
+    const arc = sm.in && sm.done ? '<circle class="val" cx="44" cy="44" r="34" stroke-dasharray="' + (C * sm.done / sm.in).toFixed(1) + ' ' + C.toFixed(1) + '" transform="rotate(-90 44 44)"/>' : '';
+    return '<svg class="gring" viewBox="0 0 88 88"><circle class="track" cx="44" cy="44" r="34"/>' + arc
+      + (sm.in ? '<text x="44" y="46" text-anchor="middle" class="n">' + sm.done + '<tspan>/' + sm.in + '</tspan></text><text x="44" y="62" text-anchor="middle" class="l">準備OK</text>'
+               : '<text x="44" y="50" text-anchor="middle" class="l">—</text>') + '</svg>'
+      + '<div class="glg"><div class="gcap">' + (sm.in ? '今日のチェックイン ' + sm.in + '部屋' : '今日のチェックインはありません') + '</div>'
+      + '<div class="gl g"><i></i>準備OK<b>' + sm.done + '</b></div>'
+      + '<div class="gl' + (rest ? ' r' : '') + '"><i></i>未完了<b>' + rest + '</b></div>'
+      + (late ? '<div class="gl r"><i></i>期限切れ<b>' + late + '</b></div>' : '') + '</div>';
+  }
+
+  // 清掃の予定が無い部屋：清掃済み（空室・次のゲスト待ち）と滞在中に分ける
+  function idleRooms(todo, done, js) {
+    const busy = new Set(todo.map(t => t.room).concat(Object.values(js).filter(j => j.state !== 'completing').map(j => j.room)));
+    const ready = [], stay = [];
+    rooms.forEach(r => {
+      if (busy.has(r)) return;
+      const o = occ[r] || {};
+      if (o.state === 'stay') { stay.push({ r: r, out: o.out }); return; }
+      let last = o.lastDone || '';   // 受け口の記録と、この画面で完了にしたばかりの部屋の新しい方
+      done.filter(t => t.room === r).forEach(t => { if ((t.doneAt || '') > last) last = t.doneAt; });
+      ready.push({ r: r, last: last, nextIn: o.nextIn || '' });
+    });
+    ready.sort((a, b) => (a.nextIn || '9999') < (b.nextIn || '9999') ? -1 : (a.nextIn || '9999') > (b.nextIn || '9999') ? 1 : rooms.indexOf(a.r) - rooms.indexOf(b.r));
+    return { ready: ready, stay: stay };
+  }
+
+  // 4つに分ける：今すぐ清掃／このあと清掃／清掃済み／滞在中（ishiiさん 2026-09-27）
   async function render() {
     const js = {}; (await jobs()).forEach(j => js[j.id] = j);
     const live = (id) => js[id] && js[id].state !== 'completing' ? js[id] : null;
     const todo = tasks.filter(t => !t.done), done = tasks.filter(t => t.done);
+    document.getElementById('date').textContent = today ? '本日（' + mdw(today) + '）' : ' ';
+    document.getElementById('sum').innerHTML = today && summary ? gauge(summary) : '';
+    if (!today) return;
 
-    // リング：今日が締切の部屋（過ぎたものも含む）だけを数える。先の締切の部屋を前倒しで終えても数えない（ishiiさん 2026-09-26）
-    const mustToday = todo.filter(t => t.due && dueDay(t) <= today);
-    const doneToday = done.filter(t => t.due && dueDay(t) <= today);
-    // 今日のまとめは受け口が計算した数（管理画面と同じ数になる）
-    const sm = summary || { in: mustToday.length + doneToday.length, done: doneToday.length, open: mustToday.length };
-    document.getElementById('sum').innerHTML = today ? '<div><span class="k">今日IN</span><b>' + sm.in + '</b></div>'
-      + '<div><span class="g">完了</span><b class="g">' + sm.done + '</b></div>'
-      + '<div><span class="r">未完了</span><b class="r">' + sm.open + '</b></div>' : '';
-    let subText = '';
-    if (today) {
-      const next = todo.filter(t => t.due).sort((a, b) => a.due < b.due ? -1 : 1)[0];
-      subText = '本日（' + mdw(today) + '）' + (mustToday.length || doneToday.length ? '' : next ? '・今日の締切なし' : '・清掃待ちなし');
+    const now = todo.filter(t => !later(t)), next = todo.filter(later);
+    const extra = Object.values(js).filter(j => j.id.indexOf('room:') === 0 && j.state !== 'completing');   // 臨時の清掃で送信中
+    let h = '<div class="sec"><b>今すぐ清掃</b><span>' + (now.length + extra.length) + '部屋</span></div><div class="card now">'
+      + (extra.length ? '<div class="grp"><div class="dh">臨時の清掃</div>' + extra.map(j => row({ id: j.id, room: j.room, due: '', deadline: '' }, j)).join('') + '</div>' : '')
+      + (now.length || extra.length ? timeline(now, false, live) : '<div class="none">' + ICON_LEAF + '今すぐ清掃する部屋はありません</div>') + '</div>';
+    if (next.length) {
+      h += '<div class="sec"><b>このあと清掃</b><span>OUT後に入れます</span></div><div class="card">' + timeline(next, true, live) + '</div>'
+        + '<div class="secNote">ゲストが早く出たときは、部屋を押すと報告できます</div>';
     }
-    document.getElementById('date').textContent = subText || '\u00a0';
-
-    const orderBar = today ? '<div class="order"><button data-act="order" data-id="due"' + (order === 'due' ? ' class="on"' : '') + '>期限順</button>'
-      + '<button data-act="order" data-id="fac"' + (order === 'fac' ? ' class="on"' : '') + '>施設ごと</button></div>' : '';
-    if (order === 'fac' && today) {
-      document.getElementById('list').innerHTML = orderBar + facView(js, live, todo, done);
-      document.getElementById('hint').textContent = '';
-      return;
+    const idle = idleRooms(todo, done, js);
+    if (idle.ready.length) {
+      h += '<div class="sec"><b>清掃済み</b><span>次のIN順</span></div><div class="card">' + idle.ready.map(x =>
+        '<button class="row" data-act="roomFree" data-id="' + esc(x.r) + '"><div class="nm">' + roomName(x.r) + (x.nextIn === today ? '<span class="tag inT">今日IN</span>' : '')
+        + '<small>' + (x.last ? md(x.last.slice(0, 10)) + ' ' + hm(x.last) + ' 完了' : '空室・記録なし')
+        + (x.nextIn === today ? '' : x.nextIn ? '・次のIN ' + md(x.nextIn) : '・次の予約なし') + '</small></div>'
+        + (x.last ? '<span class="okchip">完了</span>' : '') + '</button>').join('') + '</div>'
+        + '<div class="secNote">押すと前回の写真・入室方法・臨時の清掃報告</div>';
     }
-
-    // 日付ごとにまとめる（期限の早い順。過ぎたものは「期限切れ」、期限なしは最後）
-    const groups = new Map();
-    const key = (t) => !t.due ? 'none' : dueDay(t) < today ? 'over' : dueDay(t);
-    todo.slice().sort((a, b) => (a.due || '9999') < (b.due || '9999') ? -1 : 1).forEach(t => {
-      const k = key(t); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t);
-    });
-    let h = '';
-    // 一覧外の部屋（表示以外の施設）で送信中のもの
-    const extra = Object.values(js).filter(j => j.id.indexOf('room:') === 0 && j.state !== 'completing');
-    if (extra.length) {
-      h += '<div class="day"><div class="dot"></div><div class="dl">一覧外の清掃</div><div class="card">'
-        + extra.map(j => row({ id: j.id, room: j.room, due: '', deadline: '', day: today }, j)).join('') + '</div></div>';
+    if (idle.stay.length) {
+      h += '<div class="sec dim"><b>滞在中</b><span>' + idle.stay.length + '部屋</span></div><div class="card">'
+        + (showStay ? idle.stay.map(x => '<button class="row idle" data-act="roomFree" data-id="' + esc(x.r) + '"><div class="nm">' + roomName(x.r)
+              + '<small>' + md(x.out) + ' OUT</small></div></button>').join('') + '<button class="row more" data-act="stayToggle"><span class="rep">閉じる ▴</span></button>'
+            : '<button class="row more" data-act="stayToggle"><span class="nm"><small>' + idle.stay.map(x => esc(x.r) + '（' + md(x.out) + ' OUT）').join('・')
+              + '</small></span><span class="rep">ひらく ▾</span></button>') + '</div>';
     }
-    groups.forEach((list, k) => {
-      const hot = k === 'over' || k === today;
-      const label = k === 'over' ? '期限切れ' : k === 'none' ? '次の予約なし' : k === today ? '今日締切 ' + mdw(k) : rel(k) === '明日' ? '明日 ' + mdw(k) : mdw(k);
-      h += '<div class="day' + (hot ? ' hot' : '') + (k === 'none' ? ' none' : '') + '"><div class="dot"></div><div class="dl">' + label + '</div>'
-        + '<div class="card">' + list.map(t => row(t, live(t.id))).join('') + '</div></div>';
-    });
-    h = h ? '<div class="tl">' + h + '</div>' : '';
-    if (today && !h) h = '<div class="empty">' + ICON_LEAF + '<br>清掃待ちの部屋はありません' + (done.length ? '<br>おつかれさまでした' : '') + '</div>';
-
-    if (done.length) {
-      h += '<div class="doneBox"><div class="cap">今日完了</div>' + done.map(t =>
-        '<button class="done" data-act="view" data-id="' + t.id + '"><span class="ok">' + ICON_OK + '</span><span class="n">' + esc(t.room)
-        + '</span><span class="m">' + doneWhen(t) + '・' + (t.photos || 0) + '枚</span></button>').join('') + '</div>';
-    }
-    if (today) {
-      const busy = new Set(todo.map(t => t.room).concat(Object.values(js).map(j => j.room)));
-      const rest = rooms.filter(r => !busy.has(r));
-      h += '<button class="othersBtn" data-act="others">' + (showOthers ? '閉じる' : '表示以外の施設') + '</button>';
-      if (showOthers) {
-        h += '<div class="others"><div class="othersNote">一覧にない部屋を掃除したときはここから</div>'
-          + rest.map(r => '<button class="other" data-act="pick" data-id="room:' + esc(r) + '">' + esc(r) + '</button>').join('') + '</div>';
-      }
-    }
-    document.getElementById('list').innerHTML = orderBar + h;
-    document.getElementById('hint').textContent = todo.length ? '部屋を押して、撮った写真をまとめて選ぶと完了します' : '';
+    document.getElementById('list').innerHTML = h;
+    document.getElementById('hint').textContent = now.length ? 'カメラを押して、撮った写真をまとめて選ぶと完了します' : '';
   }
 
   async function load() {
@@ -615,7 +532,6 @@
     const id = picking; picking = null;
     if (!files.length || !id) return;
     const t = tasks.find(x => x.id === id);
-    if (id.indexOf('room:') === 0) showOthers = false;
     const job = { id: id, room: t ? t.room : id.replace(/^room:/, ''), photos: [], uploads: [], at: [], state: 'preparing', created: Date.now() };
     await putJob(job); render();
     for (const f of files) {
@@ -713,7 +629,6 @@
     document.getElementById('rRoom').textContent = t.room;
     document.getElementById('rWhen').textContent = t.due ? rel(dueDay(t)) + ' ' + hm(t.due) + 'まで' + (/アーリー/.test(t.deadline) ? '（アーリー）' : '') : '次の予約なし';
     document.getElementById('rPick').innerHTML = ICON_CAM + '写真を選んで完了';
-    document.querySelector('#roomSheet .x').innerHTML = ICON_X;
     const body = document.getElementById('rBody');
     body.innerHTML = (t.note ? '<div class="note" style="margin:0 0 14px">' + esc(t.note) + '</div>' : '')
       + '<div class="rsec">入室方法</div><div id="rKeys"><div class="key"><div class="knote">読み込み中…</div></div></div>';
@@ -725,6 +640,7 @@
     try {
       const d = await api('access', { room: room });
       if (roomOpen !== id) return;
+      if (!document.getElementById('rKeys')) return;
       document.getElementById('rKeys').innerHTML = d.items.length ? d.items.map(k =>
         '<div class="key' + (k.kind === 'ゲスト用' ? '' : ' spare') + '"><span class="kind">' + (k.kind === 'ゲスト用' ? 'ゲスト用' : 'スタッフ用スペア') + '</span>'
         + (k.warn ? '<span class="warnTag">要注意</span>' : '')
@@ -739,14 +655,19 @@
   // 清掃の予定が無い部屋（完了済みの空室）：入室方法・前回の写真・臨時の清掃を報告
   async function openRoomFree(room) {
     const o = occ[room] || {};
+    let lastDone = o.lastDone || '', lastId = o.lastId || '';
+    tasks.filter(t => t.done && t.room === room && t.id.indexOf('tmp-') !== 0).forEach(t => { if ((t.doneAt || '') >= lastDone) { lastDone = t.doneAt; lastId = t.id; } });
     roomOpen = 'room:' + room;
     document.getElementById('rRoom').textContent = room;
-    document.getElementById('rWhen').textContent = o.lastDone ? md(o.lastDone.slice(0, 10)) + ' ' + hm(o.lastDone) + ' 完了' : '清掃の記録なし';
+    document.getElementById('rWhen').textContent = o.state === 'stay' ? '滞在中（' + md(o.out) + ' OUT）'
+      : lastDone ? md(lastDone.slice(0, 10)) + ' ' + hm(lastDone) + ' 完了' : '清掃の記録なし';
+    // 今日の完了だけ、ここから取り消せる（間違えて報告したとき）
+    const undoable = lastId && tasks.some(t => t.id === lastId && t.done);
     const btn = document.getElementById('rPick');
     btn.innerHTML = '臨時の清掃を報告'; btn.classList.add('sub');
-    document.querySelector('#roomSheet .x').innerHTML = ICON_X;
-    document.getElementById('rBody').innerHTML = (o.lastId ? '<button class="lastPhotos" data-act="lastPhotos" data-id="' + o.lastId + '">前回の清掃の写真を見る ›</button>' : '')
-      + '<div class="rsec">入室方法</div><div id="rKeys"><div class="key"><div class="knote">読み込み中…</div></div></div>';
+    document.getElementById('rBody').innerHTML = (lastId ? '<button class="lastPhotos" data-act="lastPhotos" data-id="' + lastId + '">前回の清掃の写真を見る ›</button>' : '')
+      + '<div class="rsec">入室方法</div><div id="rKeys"><div class="key"><div class="knote">読み込み中…</div></div></div>'
+      + (undoable ? '<button class="undoLink" data-act="undoLast" data-id="' + lastId + '">この完了を取り消す</button>' : '');
     document.getElementById('roomSheet').classList.add('on');
     loadKeys(room, roomOpen);
   }
@@ -761,8 +682,8 @@
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
-    ({ roomFree: openRoomFree, lastPhotos: lastPhotos, order: (v) => { order = v; try { localStorage.setItem('ochahouse-clean-order', v); } catch (e) {} render(); }, toAdmin: toAdmin, room: openRoom, closeRoom: closeRoom, pick: pick, undo: undo, view: view, zoom: (i) => zoom(+i), closeViewer: closeViewer, closeLb: closeLb,
-       others: () => { showOthers = !showOthers; render(); } })[b.dataset.act](b.dataset.id);
+    ({ roomFree: openRoomFree, lastPhotos: lastPhotos, toAdmin: toAdmin, room: openRoom, closeRoom: closeRoom, pick: pick, zoom: (i) => zoom(+i), closeLb: closeLb,
+       undoLast: (id) => { closeRoom(); undo(id); }, stayToggle: () => { showStay = !showStay; render(); } })[b.dataset.act](b.dataset.id);
   });
   window.addEventListener('online', pump);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { load(); pump(); } });
@@ -770,6 +691,7 @@
   // 運営メンバーが前回「管理」を見ていたら、そのまま管理画面を開く
   if (lsGet(ROLE_KEY) === 'admin' && lsGet(VIEW_KEY) === 'admin' && getPass()) location.replace('admin/');
   showSwitch();
+  document.querySelectorAll('.x').forEach(b => b.innerHTML = ICON_X);
   if (loadCache()) render();
   load(); pump();
 </script>

@@ -44,11 +44,22 @@
   /* 引っ張って更新・今日のまとめ */
   .pull { text-align: center; font-size: 11px; color: var(--muted); height: 0; overflow: hidden; transition: height .15s; }
   .upd { text-align: center; font-size: 11px; color: var(--muted); margin: -4px 0 8px; }
-  .sum { display: flex; background: var(--gray-bg); border-radius: 10px; padding: 7px 4px; margin-bottom: 12px; font-size: 12px; }
-  .sum div { flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 5px; }
-  .sum div + div { border-left: 1px solid var(--line2); }
-  .sum b { font-size: 16px; font-variant-numeric: tabular-nums; }
-  .sum .g { color: var(--matcha-ink); } .sum .r { color: var(--red-ink); } .sum .k { color: var(--sub); }
+  /* 今日のまとめ：丸いゲージ（清掃画面と同じ。ishiiさん 2026-09-27） */
+  .sum { display: flex; align-items: center; gap: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px; margin-bottom: 12px; }
+  .sum:empty { display: none; }
+  .gring { width: 84px; height: 84px; flex: none; }
+  .gring circle { fill: none; stroke-width: 8; }
+  .gring .track { stroke: var(--line); }
+  .gring .val { stroke: var(--matcha); stroke-linecap: round; transition: stroke-dasharray .6s cubic-bezier(.2,.8,.2,1); }
+  .gring .n { font-size: 21px; font-weight: 700; fill: var(--ink); font-variant-numeric: tabular-nums; }
+  .gring .n tspan { font-size: 13px; font-weight: 600; fill: var(--sub); }
+  .gring .l { font-size: 10px; fill: var(--sub); }
+  .glg { flex: 1; font-size: 13px; }
+  .gcap { font-size: 12px; color: var(--sub); margin-bottom: 4px; }
+  .gl { display: flex; align-items: center; gap: 8px; margin: 4px 0; color: var(--sub); }
+  .gl i { width: 9px; height: 9px; border-radius: 50%; background: var(--line2); }
+  .gl b { margin-left: auto; font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .gl.g i { background: var(--matcha); } .gl.r, .gl.r b { color: var(--red-ink); } .gl.r i { background: var(--red); }
   .todayBtn { border: 0; background: var(--matcha); color: #fff; font-size: 12px; font-weight: 700; padding: 7px 13px; border-radius: 999px; white-space: nowrap; }
   .st { flex: none; text-align: center; border-radius: 10px; padding: 5px 9px; line-height: 1.25; min-width: 84px; }
   .st b { display: block; font-size: 12px; } .st span { font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -321,6 +332,18 @@
     return { cls: 'warn', label: '⚠️ 未清掃' };
   }
   // 一覧の右側：完了／未完了＋残り時間（ishiiさん 2026-09-27）
+  // 今日INの部屋のうち準備OKの割合を丸いゲージで（清掃画面の gauge と同じ）
+  function gauge(sm) {
+    const C = 2 * Math.PI * 34, rest = sm.in - sm.done, late = sm.late || 0;
+    const arc = sm.in && sm.done ? '<circle class="val" cx="44" cy="44" r="34" stroke-dasharray="' + (C * sm.done / sm.in).toFixed(1) + ' ' + C.toFixed(1) + '" transform="rotate(-90 44 44)"/>' : '';
+    return '<svg class="gring" viewBox="0 0 88 88"><circle class="track" cx="44" cy="44" r="34"/>' + arc
+      + (sm.in ? '<text x="44" y="46" text-anchor="middle" class="n">' + sm.done + '<tspan>/' + sm.in + '</tspan></text><text x="44" y="62" text-anchor="middle" class="l">準備OK</text>'
+               : '<text x="44" y="50" text-anchor="middle" class="l">—</text>') + '</svg>'
+      + '<div class="glg"><div class="gcap">' + (sm.in ? '今日のチェックイン ' + sm.in + '部屋' : '今日のチェックインはありません') + '</div>'
+      + '<div class="gl g"><i></i>準備OK<b>' + sm.done + '</b></div>'
+      + '<div class="gl' + (rest ? ' r' : '') + '"><i></i>未完了<b>' + rest + '</b></div>'
+      + (late ? '<div class="gl r"><i></i>期限切れ<b>' + late + '</b></div>' : '') + '</div>';
+  }
   function remain(due) {
     const m = Math.round((new Date(due) - new Date()) / 60000);
     if (m <= 0) return '期限切れ';
@@ -353,10 +376,8 @@
     const insT = D.rooms.map(r => inOn(r, today)).filter(Boolean);
     const ready = insT.filter(b => ['ok', 'none'].includes(st(taskDue(b.room, today)).cls)).length;
     const overdue = T().filter(t => t.status !== '完了' && t.status !== 'キャンセル' && t.due && t.due.slice(0, 10) < today).length;
-    const sm = D.summary || { in: insT.length, done: ready, open: insT.length - ready + overdue };   // 受け口の数（清掃画面と同じ）
-    document.getElementById('sum').innerHTML = '<div><span class="k">今日IN</span><b>' + sm.in + '</b></div>'
-      + '<div><span class="g">完了</span><b class="g">' + sm.done + '</b></div>'
-      + '<div><span class="r">未完了</span><b class="r">' + sm.open + '</b></div>';
+    const sm = D.summary || { in: insT.length, done: ready, late: overdue };   // 受け口の数（清掃画面と同じ）
+    document.getElementById('sum').innerHTML = gauge(sm);
     document.getElementById('todayBtn').style.visibility = (weekOff || selDay !== today) ? 'visible' : 'hidden';
     updLabel();
 
