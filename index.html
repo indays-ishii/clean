@@ -167,6 +167,9 @@
   .tm small { display: block; font-size: 11px; font-weight: 600; color: var(--sub); line-height: 1.2; }
   button.row { width: 100%; border: 0; background: none; text-align: left; font: inherit; color: inherit; }
   .row .rep { font-size: 13px; color: var(--sub); flex: none; }
+  .bigBtn.sub { background: transparent; color: var(--sub); border: 1px solid var(--line2); font-size: 15px; height: 48px; }
+  .lastPhotos { display: block; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 14px;
+    padding: 12px 14px; margin-bottom: 14px; font-size: 14px; font-weight: 600; color: var(--matcha-ink); }
   .okchip { flex: none; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--matcha-bg); color: var(--matcha-ink); }
   /* 今日のまとめ（管理画面と同じ帯） */
   .sum { display: flex; background: var(--line); border-radius: 10px; padding: 7px 4px; margin: -8px 0 18px; font-size: 12px; }
@@ -492,11 +495,13 @@
             + '<small>' + doneWhen(t) + '・' + (t.photos || 0) + '枚</small></div><span class="okchip">完了</span></button>';
         });
         if (!ts.length && !ds.length && !(ex && ex.state !== 'completing')) {
+          // 清掃会社目線の3つだけ：未完了（上）／完了（前の日の完了も）／滞在中（ishiiさん 2026-09-27）
           const o = occ[r] || {};
           body += o.state === 'stay'
             ? '<div class="row idle"><div class="tm"></div><div class="nm">' + num + '<small>滞在中（' + md(o.out) + ' OUT）</small></div></div>'
-            : '<button class="row idle" data-act="pick" data-id="room:' + esc(r) + '"><div class="tm"></div><div class="nm">' + num
-              + '<small>空室' + (o.nextIn ? '・次のIN ' + md(o.nextIn) : '') + '</small></div><span class="rep">報告 ›</span></button>';
+            : '<button class="row fdone" data-act="roomFree" data-id="' + esc(r) + '"><div class="tm"></div><div class="nm">' + num
+              + '<small>' + (o.lastDone ? md(o.lastDone.slice(0, 10)) + ' ' + hm(o.lastDone) + ' 完了' : '記録なし') + '</small></div>'
+              + (o.lastDone ? '<span class="okchip">完了</span>' : '') + '</button>';
         }
       });
       h += '<div class="fhead"><span>' + fac + '</span><span class="' + (open ? 'r' : 'g') + '">' + (open ? '未完了 ' + open : 'すべて完了') + '</span></div>'
@@ -713,8 +718,12 @@
     body.innerHTML = (t.note ? '<div class="note" style="margin:0 0 14px">' + esc(t.note) + '</div>' : '')
       + '<div class="rsec">入室方法</div><div id="rKeys"><div class="key"><div class="knote">読み込み中…</div></div></div>';
     document.getElementById('roomSheet').classList.add('on');
+    document.getElementById('rPick').classList.remove('sub');
+    loadKeys(t.room, id);
+  }
+  async function loadKeys(room, id) {
     try {
-      const d = await api('access', { room: t.room });
+      const d = await api('access', { room: room });
       if (roomOpen !== id) return;
       document.getElementById('rKeys').innerHTML = d.items.length ? d.items.map(k =>
         '<div class="key' + (k.kind === 'ゲスト用' ? '' : ' spare') + '"><span class="kind">' + (k.kind === 'ゲスト用' ? 'ゲスト用' : 'スタッフ用スペア') + '</span>'
@@ -727,13 +736,32 @@
       if (!e.silent && roomOpen === id) document.getElementById('rKeys').innerHTML = '<div class="key"><div class="knote">入室方法を読み込めませんでした。電波の良い所で開き直してください</div></div>';
     }
   }
+  // 清掃の予定が無い部屋（完了済みの空室）：入室方法・前回の写真・臨時の清掃を報告
+  async function openRoomFree(room) {
+    const o = occ[room] || {};
+    roomOpen = 'room:' + room;
+    document.getElementById('rRoom').textContent = room;
+    document.getElementById('rWhen').textContent = o.lastDone ? md(o.lastDone.slice(0, 10)) + ' ' + hm(o.lastDone) + ' 完了' : '清掃の記録なし';
+    const btn = document.getElementById('rPick');
+    btn.innerHTML = '臨時の清掃を報告'; btn.classList.add('sub');
+    document.querySelector('#roomSheet .x').innerHTML = ICON_X;
+    document.getElementById('rBody').innerHTML = (o.lastId ? '<button class="lastPhotos" data-act="lastPhotos" data-id="' + o.lastId + '">前回の清掃の写真を見る ›</button>' : '')
+      + '<div class="rsec">入室方法</div><div id="rKeys"><div class="key"><div class="knote">読み込み中…</div></div></div>';
+    document.getElementById('roomSheet').classList.add('on');
+    loadKeys(room, roomOpen);
+  }
+  async function lastPhotos(id) {
+    try { const d = await api('photos', { id: id }); if (!d.urls.length) { toast('写真はありません'); return; } lbUrls = d.urls; zoom(0); }
+    catch (e) { if (!e.silent) toast('写真を読み込めませんでした', true); }
+  }
+
   function closeRoom() { roomOpen = null; document.getElementById('roomSheet').classList.remove('on'); document.getElementById('rKeys') && (document.getElementById('rBody').innerHTML = ''); }
-  document.getElementById('rPick').addEventListener('click', () => { const id = roomOpen; closeRoom(); if (id) pick(id); });
+  document.getElementById('rPick').addEventListener('click', () => { const id = roomOpen; closeRoom(); if (id) pick(id); });  // 予定の無い部屋は id が room:部屋名 ＝一覧外の清掃として報告
 
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
-    ({ order: (v) => { order = v; try { localStorage.setItem('ochahouse-clean-order', v); } catch (e) {} render(); }, toAdmin: toAdmin, room: openRoom, closeRoom: closeRoom, pick: pick, undo: undo, view: view, zoom: (i) => zoom(+i), closeViewer: closeViewer, closeLb: closeLb,
+    ({ roomFree: openRoomFree, lastPhotos: lastPhotos, order: (v) => { order = v; try { localStorage.setItem('ochahouse-clean-order', v); } catch (e) {} render(); }, toAdmin: toAdmin, room: openRoom, closeRoom: closeRoom, pick: pick, undo: undo, view: view, zoom: (i) => zoom(+i), closeViewer: closeViewer, closeLb: closeLb,
        others: () => { showOthers = !showOthers; render(); } })[b.dataset.act](b.dataset.id);
   });
   window.addEventListener('online', pump);
