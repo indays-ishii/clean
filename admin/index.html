@@ -353,9 +353,10 @@
     const insT = D.rooms.map(r => inOn(r, today)).filter(Boolean);
     const ready = insT.filter(b => ['ok', 'none'].includes(st(taskDue(b.room, today)).cls)).length;
     const overdue = T().filter(t => t.status !== '完了' && t.status !== 'キャンセル' && t.due && t.due.slice(0, 10) < today).length;
-    document.getElementById('sum').innerHTML = '<div><span class="k">今日IN</span><b>' + insT.length + '</b></div>'
-      + '<div><span class="g">完了</span><b class="g">' + ready + '</b></div>'
-      + '<div><span class="r">未完了</span><b class="r">' + (insT.length - ready + overdue) + '</b></div>';
+    const sm = D.summary || { in: insT.length, done: ready, open: insT.length - ready + overdue };   // 受け口の数（清掃画面と同じ）
+    document.getElementById('sum').innerHTML = '<div><span class="k">今日IN</span><b>' + sm.in + '</b></div>'
+      + '<div><span class="g">完了</span><b class="g">' + sm.done + '</b></div>'
+      + '<div><span class="r">未完了</span><b class="r">' + sm.open + '</b></div>';
     document.getElementById('todayBtn').style.visibility = (weekOff || selDay !== today) ? 'visible' : 'hidden';
     updLabel();
 

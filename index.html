@@ -276,17 +276,17 @@
   const jstToday = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
   const nowIsoJst = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 19) + '+09:00';
   // 並び：期限順（due）／施設ごと（fac）。前回の選択を覚える（ishiiさん 2026-09-27）
-  let occ = {}, order = 'due';
+  let occ = {}, order = 'due', summary = null;
   try { order = localStorage.getItem('ochahouse-clean-order') || 'due'; } catch (e) {}
   if (order !== 'fac') order = 'due';   // 壊れた値が残っていても期限順に戻す
   function setData(d) {
-    tasks = d.tasks; today = d.today; rooms = d.rooms || rooms; occ = d.occ || occ;
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ tasks: tasks, today: today, rooms: rooms, occ: occ })); } catch (e) {}
+    tasks = d.tasks; today = d.today; rooms = d.rooms || rooms; occ = d.occ || occ; summary = d.summary || null;
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ tasks: tasks, today: today, rooms: rooms, occ: occ, summary: summary })); } catch (e) {}
   }
   function loadCache() {
     try {
       const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-      if (c && c.today === jstToday()) { tasks = c.tasks; today = c.today; rooms = c.rooms || []; occ = c.occ || {}; return true; }
+      if (c && c.today === jstToday()) { tasks = c.tasks; today = c.today; rooms = c.rooms || []; occ = c.occ || {}; summary = c.summary || null; return true; }
     } catch (e) {}
     return false;
   }
@@ -514,9 +514,11 @@
     // リング：今日が締切の部屋（過ぎたものも含む）だけを数える。先の締切の部屋を前倒しで終えても数えない（ishiiさん 2026-09-26）
     const mustToday = todo.filter(t => t.due && dueDay(t) <= today);
     const doneToday = done.filter(t => t.due && dueDay(t) <= today);
-    document.getElementById('sum').innerHTML = today ? '<div><span class="k">今日IN</span><b>' + (mustToday.length + doneToday.length) + '</b></div>'
-      + '<div><span class="g">完了</span><b class="g">' + doneToday.length + '</b></div>'
-      + '<div><span class="r">未完了</span><b class="r">' + mustToday.length + '</b></div>' : '';
+    // 今日のまとめは受け口が計算した数（管理画面と同じ数になる）
+    const sm = summary || { in: mustToday.length + doneToday.length, done: doneToday.length, open: mustToday.length };
+    document.getElementById('sum').innerHTML = today ? '<div><span class="k">今日IN</span><b>' + sm.in + '</b></div>'
+      + '<div><span class="g">完了</span><b class="g">' + sm.done + '</b></div>'
+      + '<div><span class="r">未完了</span><b class="r">' + sm.open + '</b></div>' : '';
     let subText = '';
     if (today) {
       const next = todo.filter(t => t.due).sort((a, b) => a.due < b.due ? -1 : 1)[0];
