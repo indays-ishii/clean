@@ -60,6 +60,7 @@
   .gl i { width: 9px; height: 9px; border-radius: 50%; background: var(--line2); }
   .gl b { margin-left: auto; font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; }
   .gl.g i { background: var(--matcha); } .gl.r, .gl.r b { color: var(--red-ink); } .gl.r i { background: var(--red); }
+  .gl.a, .gl.a b { color: var(--amber); } .gl.a i { background: var(--amber); }
   .todayBtn { border: 0; background: var(--matcha); color: #fff; font-size: 12px; font-weight: 700; padding: 7px 13px; border-radius: 999px; white-space: nowrap; }
   .st { flex: none; text-align: center; border-radius: 10px; padding: 5px 9px; line-height: 1.25; min-width: 84px; }
   .st b { display: block; font-size: 12px; } .st span { font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -319,10 +320,21 @@
   const taskOut = (room, day) => T().find(t => t.room === room && t.day === day);
   const prevOf = (room, day) => B().filter(b => b.room === room && b.out <= day).sort((a, b) => a.out < b.out ? 1 : -1)[0];
   const nextOf = (room, day) => B().filter(b => b.room === room && b.in >= day).sort((a, b) => a.in < b.in ? -1 : 1)[0];
+  // 清掃の行が無いIN：前のゲストのOUTのあと、清掃の完了も清掃の行も無ければ要確認（Mac miniが作り損ねた等。ishiiさん 2026-09-28）
+  // 7日より先のOUTは、まだ清掃の行が作られていないので見ない
+  function needCheck(room, day) {
+    const p = prevOf(room, day);
+    if (!p || p.out > addDays(D.today, 7)) return false;
+    const ld = (D.lastDone || {})[room] || '';
+    return !(ld && ld.slice(0, 10) >= p.out) && !T().some(t => t.room === room && t.day === p.out);
+  }
+  // INの日の清掃：清掃の行、または要確認の印 {check:true}
+  const taskIn = (room, day) => taskDue(room, day) || (needCheck(room, day) ? { check: true } : null);
 
   // 清掃の状態 → {cls, label}
   function st(t) {
     if (!t) return { cls: 'none', label: '空室から' };   // 前の清掃のあとチェックアウトが無かった部屋
+    if (t.check) return { cls: 'warn', label: '要確認' };
     if (t.status === '完了') return { cls: 'ok', label: '✅ 清掃済み' };
     if (t.status === 'キャンセル') return { cls: 'none', label: '清掃不要' };
     const today = D.today, now = new Date();
@@ -334,7 +346,7 @@
   // 一覧の右側：完了／未完了＋残り時間（ishiiさん 2026-09-27）
   // 今日INの部屋のうち準備OKの割合を丸いゲージで（清掃画面の gauge と同じ）
   function gauge(sm) {
-    const C = 2 * Math.PI * 34, rest = sm.in - sm.done, late = sm.late || 0;
+    const C = 2 * Math.PI * 34, check = sm.check || 0, rest = sm.in - sm.done - check, late = sm.late || 0;
     const arc = sm.in && sm.done ? '<circle class="val" cx="44" cy="44" r="34" stroke-dasharray="' + (C * sm.done / sm.in).toFixed(1) + ' ' + C.toFixed(1) + '" transform="rotate(-90 44 44)"/>' : '';
     return '<svg class="gring" viewBox="0 0 88 88"><circle class="track" cx="44" cy="44" r="34"/>' + arc
       + (sm.in ? '<text x="44" y="46" text-anchor="middle" class="n">' + sm.done + '<tspan>/' + sm.in + '</tspan></text><text x="44" y="62" text-anchor="middle" class="l">準備OK</text>'
@@ -342,6 +354,7 @@
       + '<div class="glg"><div class="gcap">' + (sm.in ? '今日のチェックイン ' + sm.in + '部屋' : '今日のチェックインはありません') + '</div>'
       + '<div class="gl g"><i></i>準備OK<b>' + sm.done + '</b></div>'
       + '<div class="gl' + (rest ? ' r' : '') + '"><i></i>未完了<b>' + rest + '</b></div>'
+      + (check ? '<div class="gl a"><i></i>要確認（清掃記録なし）<b>' + check + '</b></div>' : '')
       + (late ? '<div class="gl r"><i></i>期限切れ<b>' + late + '</b></div>' : '') + '</div>';
   }
   function remain(due) {
@@ -353,6 +366,7 @@
   function stBox(t) {
     const s = st(t);
     if (!t) return '<div class="st none"><b>空室から</b></div>';
+    if (t.check) return '<div class="st warn"><b>要確認</b><span>清掃記録なし</span></div>';
     if (s.cls === 'ok') return '<div class="st ok"><b>完了</b></div>';
     if (t.status === 'キャンセル') return '<div class="st none"><b>清掃不要</b></div>';
     if (s.cls === 'plan') return '<div class="st plan"><b>予定</b><span>' + md(t.day) + ' OUT後</span></div>';
@@ -396,7 +410,7 @@
     const rooms = D.rooms;
     let h = '<div class="strip">' + ds.map(d => {
       const ins = rooms.map(r => inOn(r, d)).filter(Boolean);
-      const cls = ins.length ? worst(ins.map(b => st(taskDue(b.room, d)).cls)) : 'none';
+      const cls = ins.length ? worst(ins.map(b => st(taskIn(b.room, d)).cls)) : 'none';
       return '<button data-act="day" data-v="' + d + '" class="' + (d === selDay ? 'on ' : '') + (d === D.today ? 'today' : '') + '"><div class="w">' + WD[new Date(d + 'T00:00:00Z').getUTCDay()]
         + '</div><div class="d">' + Number(d.slice(8)) + '</div><div class="c ' + cls + '">' + (ins.length || '') + '</div></button>';
     }).join('') + '</div>';
@@ -404,7 +418,7 @@
     const inTime = (b) => { const t = taskDue(b.room, selDay); return t && t.due ? hm(t.due) : b.tin; };
     const ins = rooms.map(r => inOn(r, selDay)).filter(Boolean).sort((a, b) => inTime(a) < inTime(b) ? -1 : 1);
     h += '<div class="capIn"><i></i>' + dayLabel(selDay) + 'のチェックイン<span style="font-weight:600;color:var(--sub);font-size:13px">' + ins.length + '件</span></div><div class="card">' + (ins.length ? ins.map(b => {
-      const t = taskDue(b.room, selDay), s = st(t), due = t && t.due ? hm(t.due) : b.tin, early = t && /アーリー/.test(t.deadline);
+      const t = taskIn(b.room, selDay), s = st(t), due = t && t.due ? hm(t.due) : b.tin, early = t && /アーリー/.test(t.deadline || '');
       return '<button class="item" data-act="open" data-room="' + esc(b.room) + '" data-day="' + selDay + '" data-kind="in"><span class="tm' + (s.cls === 'hot' ? ' hot' : '') + '">' + due + '</span>'
         + '<span class="nm">' + esc(b.room) + '<small>' + esc(b.ch || '') + (b.n ? '・' + b.n + '名' : '') + (early ? '・<span class="early">アーリー</span>' : '') + '</small></span>'
         + stBox(t) + '</button>';
@@ -430,8 +444,8 @@
       ds.forEach(d => {
         const i = inOn(r, d), o = outOn(r, d);
         let txt = '·', cls = '', kind = '';
-        if (i && o) { txt = '⇄'; cls = st(taskDue(r, d)).cls; kind = 'in'; }
-        else if (i) { txt = 'IN'; cls = st(taskDue(r, d)).cls; kind = 'in'; }
+        if (i && o) { txt = '⇄'; cls = st(taskIn(r, d)).cls; kind = 'in'; }
+        else if (i) { txt = 'IN'; cls = st(taskIn(r, d)).cls; kind = 'in'; }
         else if (o) { txt = 'OUT'; cls = st(taskOut(r, d)).cls; kind = 'out'; }
         else if (stayOn(r, d)) { txt = '━'; cls = 'stay'; }
         h += kind ? '<button class="cell ' + cls + '" data-act="open" data-room="' + esc(r) + '" data-day="' + d + '" data-kind="' + kind + '">' + txt + '</button>'
@@ -514,14 +528,17 @@
         + '<div id="dueBox" style="display:none;margin-top:8px"><input type="datetime-local" id="dDue" value="' + (t.due ? t.due.slice(0, 16) : '') + '">'
         + '<div class="btns" style="margin-top:8px"><button class="btn full" data-act="due">この期限にする</button></div></div>';
     } else {
-      h += '<div class="box"><div class="kv"><span class="v" style="color:var(--sub)">前の清掃のあとチェックアウトが無かった部屋です（空室から）</span></div></div>';
+      const p = kind === 'in' && needCheck(room, day) ? prevOf(room, day) : null;
+      h += p ? '<div class="box"><div class="kv"><span class="v">前のゲストのOUT（' + mdw(p.out) + '）のあとの清掃の記録がありません。清掃されているか確認してください。</span></div></div>'
+             + '<div class="btns"><button class="btn pri full" data-act="markClean" data-room="' + esc(room) + '">清掃済みにする（記録を作る）</button></div>'
+             : '<div class="box"><div class="kv"><span class="v" style="color:var(--sub)">前の清掃のあとチェックアウトが無かった部屋です（空室から）</span></div></div>';
     }
     h += '<div class="sec">入室方法</div><div id="dKeys"><button class="btn full" data-act="keys" data-room="' + esc(room) + '">入室方法を見る</button></div>';
     h += '<div class="sec">この部屋の最近の清掃</div><div class="box hist" id="dHist" style="padding:4px 12px"><div class="empty">読み込み中…</div></div>';
     openSheet(room, (kind === 'in' ? 'チェックイン ' : 'チェックアウト ') + mdw(day), h);
     const shead = document.querySelector('.shead');
     const old = shead.querySelector('.st'); if (old) old.remove();
-    shead.querySelector('.x').insertAdjacentHTML('beforebegin', stBox(t));
+    shead.querySelector('.x').insertAdjacentHTML('beforebegin', stBox(t || (kind === 'in' ? taskIn(room, day) : null)));
     if (t && (t.photos || t.status === '完了')) loadPhotos(t.id, 'dPhotos');
     try {
       const r = await api('admin_history', { room });
@@ -588,6 +605,16 @@
     } catch (e) { if (!e.silent) toast('できませんでした：' + (e.message || ''), true); }
   }
 
+  // 要確認の部屋：清掃されていたら、今日付けの完了の記録を作る
+  async function markClean(room) {
+    if (!(await ask(room + ' を清掃済みにしますか？\n（今日付けで完了の記録を作ります）', '清掃済みにする'))) return;
+    try {
+      const r = await api('admin_add', { room: room, day: D.today, memo: '要確認から清掃済みに（管理画面）' });
+      await api('admin_set', { id: r.id, op: 'complete' });
+      toast('清掃済みにしました'); closeSheet(); load(true);
+    } catch (e) { if (!e.silent) toast('できませんでした：' + (e.message || ''), true); }
+  }
+
   function addForm(room, day) {
     const opts = D.rooms.map(r => '<option' + (r === room ? ' selected' : '') + '>' + esc(r) + '</option>').join('');
     openSheet('臨時の清掃を追加', '清掃会社の画面に、その日の前日から出ます', '<div class="box">'
@@ -638,6 +665,7 @@
     else if (a === 'zoom') zoomFrom(JSON.parse(document.getElementById(b.dataset.src).dataset.urls || '[]'), Number(v));
     else if (a === 'histPhotos') histPhotos(v);
     else if (a === 'op') doSet(v);
+    else if (a === 'markClean') markClean(b.dataset.room);
     else if (a === 'memo') doSet('memo', document.getElementById('dMemo').value.trim());
     else if (a === 'due') { const x = document.getElementById('dDue').value; if (!x) { toast('期限を選んでください', true); return; } doSet('due', x); }
     else if (a === 'dueEdit') { const x = document.getElementById('dueBox'); x.style.display = x.style.display === 'none' ? 'block' : 'none'; }
