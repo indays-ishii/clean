@@ -278,6 +278,7 @@
   // 並び：期限順（due）／施設ごと（fac）。前回の選択を覚える（ishiiさん 2026-09-27）
   let occ = {}, order = 'due';
   try { order = localStorage.getItem('ochahouse-clean-order') || 'due'; } catch (e) {}
+  if (order !== 'fac') order = 'due';   // 壊れた値が残っていても期限順に戻す
   function setData(d) {
     tasks = d.tasks; today = d.today; rooms = d.rooms || rooms; occ = d.occ || occ;
     try { localStorage.setItem(CACHE_KEY, JSON.stringify({ tasks: tasks, today: today, rooms: rooms, occ: occ })); } catch (e) {}
@@ -523,8 +524,8 @@
     }
     document.getElementById('date').textContent = subText || '\u00a0';
 
-    const orderBar = today ? '<div class="order"><button data-act="order" data-v="due"' + (order === 'due' ? ' class="on"' : '') + '>期限順</button>'
-      + '<button data-act="order" data-v="fac"' + (order === 'fac' ? ' class="on"' : '') + '>施設ごと</button></div>' : '';
+    const orderBar = today ? '<div class="order"><button data-act="order" data-id="due"' + (order === 'due' ? ' class="on"' : '') + '>期限順</button>'
+      + '<button data-act="order" data-id="fac"' + (order === 'fac' ? ' class="on"' : '') + '>施設ごと</button></div>' : '';
     if (order === 'fac' && today) {
       document.getElementById('list').innerHTML = orderBar + facView(js, live, todo, done);
       document.getElementById('hint').textContent = '';
