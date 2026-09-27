@@ -41,6 +41,37 @@
   h1 { font-size: 24px; font-weight: 700; margin: 0; }
   .sub { color: var(--sub); font-size: 12px; margin-top: 3px; }
 
+  /* 引っ張って更新・今日のまとめ */
+  .pull { text-align: center; font-size: 11px; color: var(--muted); height: 0; overflow: hidden; transition: height .15s; }
+  .upd { text-align: center; font-size: 11px; color: var(--muted); margin: -4px 0 8px; }
+  .sum { display: flex; background: var(--gray-bg); border-radius: 10px; padding: 7px 4px; margin-bottom: 12px; font-size: 12px; }
+  .sum div { flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 5px; }
+  .sum div + div { border-left: 1px solid var(--line2); }
+  .sum b { font-size: 16px; font-variant-numeric: tabular-nums; }
+  .sum .g { color: var(--matcha-ink); } .sum .r { color: var(--red-ink); } .sum .k { color: var(--sub); }
+  .todayBtn { border: 0; background: var(--matcha); color: #fff; font-size: 12px; font-weight: 700; padding: 7px 13px; border-radius: 999px; white-space: nowrap; }
+  .st { flex: none; text-align: center; border-radius: 10px; padding: 5px 9px; line-height: 1.25; min-width: 84px; }
+  .st b { display: block; font-size: 12px; } .st span { font-size: 11px; font-variant-numeric: tabular-nums; }
+  .st.ok { background: var(--matcha-bg); color: var(--matcha-ink); }
+  .st.warn { background: var(--amber-bg); color: var(--amber); }
+  .st.hot { background: var(--red-bg); color: var(--red-ink); }
+  .st.plan, .st.none { background: var(--gray-bg); color: var(--sub); }
+  /* 部屋の詳細：前と次のゲストを左右に */
+  .guests { display: flex; align-items: stretch; gap: 6px; margin-bottom: 12px; }
+  .guests .g { flex: 1; min-width: 0; border-radius: 14px; padding: 10px; background: var(--card); border: 1px solid var(--line); }
+  .guests .g.next { background: var(--matcha-bg); border-color: transparent; }
+  .guests .g .lb { font-size: 11px; color: var(--sub); }
+  .guests .g.next .lb, .guests .g.next .tt, .guests .g.next .nm2 { color: var(--matcha-ink); }
+  .guests .g .tt { font-size: 17px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .guests .g .nm2 { font-size: 13px; font-weight: 600; margin-top: 6px; overflow-wrap: anywhere; }
+  .guests .g .mt { font-size: 11px; color: var(--sub); margin-top: 2px; }
+  .guests .arrow { display: flex; align-items: center; color: var(--muted); font-size: 16px; }
+  .tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 6px; margin-top: 4px; }
+  .tag.early { background: var(--red-bg); color: var(--red-ink); } .tag.late { background: var(--amber-bg); color: var(--amber); }
+  .sec { font-size: 12px; font-weight: 700; color: var(--sub); margin: 16px 2px 7px; }
+  .rowline { display: flex; align-items: center; justify-content: space-between; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+  .link { border: 0; background: none; color: var(--matcha-ink); font-size: 13px; font-weight: 700; padding: 4px; }
+
   /* 今日の要注意 */
   .alert { border-radius: 16px; padding: 12px 14px; margin-bottom: 14px; }
   .alert.bad { background: var(--red-bg); border: 1px solid var(--red-line); }
@@ -172,13 +203,15 @@
 </head>
 <body>
 <main>
-  <header>
-    <div><h1>清掃の管理</h1><div class="sub" id="sub">&nbsp;</div></div>
+  <div class="pull" id="pull">↓ 離すと更新</div>
+  <div class="upd" id="upd">&nbsp;</div>
+  <header style="align-items:baseline">
+    <h1>清掃の管理</h1><div class="sub" id="sub">&nbsp;</div>
   </header>
-  <div id="alert"></div>
+  <div class="sum" id="sum"></div>
   <div class="bar">
     <div class="nav"><button data-act="week" data-v="-1" aria-label="前の週">‹</button><span id="range"></span><button data-act="week" data-v="1" aria-label="次の週">›</button></div>
-    <button class="thisweek" id="thisweek" data-act="week" data-v="0">今週</button>
+    <button class="todayBtn" id="todayBtn" data-act="today">今日</button>
     <div class="seg"><button data-act="tab" data-v="day" id="tabDay" class="on">日ごと</button><button data-act="tab" data-v="grid" id="tabGrid">一覧表</button></div>
   </div>
   <div id="view"></div>
@@ -260,29 +293,44 @@
     if (t.due && t.due.slice(0, 10) === today) return { cls: 'hot', label: '⚠️ 今日締切' };
     return { cls: 'warn', label: '⚠️ 未清掃' };
   }
+  // 一覧の右側：完了／未完了＋残り時間（ishiiさん 2026-09-27）
+  function remain(due) {
+    const m = Math.round((new Date(due) - new Date()) / 60000);
+    if (m <= 0) return '期限切れ';
+    const h = Math.floor(m / 60), d = Math.floor(h / 24);
+    return '残り' + (d >= 1 ? d + '日' + (h % 24 ? h % 24 + '時間' : '') : (h ? h + '時間' : '') + (m % 60 && h < 3 ? m % 60 + '分' : ''));
+  }
+  function stBox(t) {
+    const s = st(t);
+    if (!t) return '<div class="st none"><b>空室から</b></div>';
+    if (s.cls === 'ok') return '<div class="st ok"><b>完了</b></div>';
+    if (t.status === 'キャンセル') return '<div class="st none"><b>清掃不要</b></div>';
+    if (s.cls === 'plan') return '<div class="st plan"><b>予定</b><span>' + md(t.day) + ' OUT後</span></div>';
+    if (!t.due) return '<div class="st warn"><b>未完了</b></div>';
+    const m = (new Date(t.due) - new Date()) / 60000;
+    return '<div class="st ' + (m <= 120 ? 'hot' : 'warn') + '"><b>未完了</b><span>' + remain(t.due) + '</span></div>';
+  }
   const worst = (list) => ['hot', 'warn', 'plan', 'ok', 'none'].find(c => list.includes(c)) || 'none';
 
   // ---------------------------------------------------------------- 画面
   function render() {
     if (!D) return;
     const today = D.today, ds = days(), made = (D.bookings && D.bookings.made) || '';
-    document.getElementById('sub').textContent = mdw(today) + (made ? '・予約 ' + md(made.slice(0, 10)) + ' ' + made.slice(11, 16) + ' 時点' : '');
+    document.getElementById('sub').textContent = mdw(today);
     document.getElementById('range').textContent = md(ds[0]) + '〜' + md(ds[6]);
-    document.getElementById('thisweek').style.visibility = weekOff ? 'visible' : 'hidden';
+
     document.getElementById('tabDay').className = tab === 'day' ? 'on' : '';
     document.getElementById('tabGrid').className = tab === 'grid' ? 'on' : '';
 
-    // 今日の要注意（期限切れ・今日締切で未清掃）
-    const now = new Date();
-    const warn = T().filter(t => t.status !== '完了' && t.status !== 'キャンセル' && t.due && (new Date(t.due) < now || t.due.slice(0, 10) === today))
-      .sort((a, b) => a.due < b.due ? -1 : 1);
-    document.getElementById('alert').innerHTML = warn.length
-      ? '<div class="alert bad"><div class="t">今日の要注意 ' + warn.length + '件</div>' + warn.map(t => {
-          const over = new Date(t.due) < now;
-          return '<button data-act="task" data-v="' + t.id + '"><span class="tm">' + (t.due.slice(0, 10) === today ? hm(t.due) : md(t.due.slice(0, 10))) + '</span><span class="rm">' + esc(t.room)
-            + '</span><span class="why">' + (over ? '期限切れ・未清掃' : hm(t.due) + 'までに未清掃') + '</span></button>';
-        }).join('') + '</div>'
-      : '<div class="alert good">✅ 今日の要注意はありません</div>';
+    // 今日のまとめ（今日チェックインの部屋のうち、準備ができた部屋・まだの部屋）
+    const insT = D.rooms.map(r => inOn(r, today)).filter(Boolean);
+    const ready = insT.filter(b => ['ok', 'none'].includes(st(taskDue(b.room, today)).cls)).length;
+    const overdue = T().filter(t => t.status !== '完了' && t.status !== 'キャンセル' && t.due && t.due.slice(0, 10) < today).length;
+    document.getElementById('sum').innerHTML = '<div><span class="k">今日IN</span><b>' + insT.length + '</b></div>'
+      + '<div><span class="g">完了</span><b class="g">' + ready + '</b></div>'
+      + '<div><span class="r">未完了</span><b class="r">' + (insT.length - ready + overdue) + '</b></div>';
+    document.getElementById('todayBtn').style.visibility = (weekOff || selDay !== today) ? 'visible' : 'hidden';
+    updLabel();
 
     document.getElementById('view').innerHTML = tab === 'day' ? dayView(ds) : gridView(ds);
     document.getElementById('foot').textContent = D.bookings && D.bookings.ok && (D.bookings.ok.AirHost === false || D.bookings.ok['麻布十番'] === false)
@@ -305,7 +353,7 @@
       const t = taskDue(b.room, selDay), s = st(t), due = t && t.due ? hm(t.due) : b.tin, early = t && /アーリー/.test(t.deadline);
       return '<button class="item" data-act="open" data-room="' + esc(b.room) + '" data-day="' + selDay + '" data-kind="in"><span class="tm' + (s.cls === 'hot' ? ' hot' : '') + '">' + due + '</span>'
         + '<span class="nm">' + esc(b.room) + '<small>' + esc(b.ch || '') + (b.n ? '・' + b.n + '名' : '') + (early ? '・<span class="early">アーリー</span>' : '') + '</small></span>'
-        + '<span class="chip ' + s.cls + '">' + s.label + '</span></button>';
+        + stBox(t) + '</button>';
     }).join('') : '<div class="empty">チェックインはありません</div>') + '</div>';
 
     const outs = rooms.map(r => outOn(r, selDay)).filter(Boolean).sort((a, b) => a.tout < b.tout ? -1 : 1);
@@ -314,7 +362,7 @@
         const t = taskOut(b.room, selDay), s = st(t);
         return '<button class="item" data-act="open" data-room="' + esc(b.room) + '" data-day="' + selDay + '" data-kind="out"><span class="tm">' + b.tout + '</span>'
           + '<span class="nm">' + esc(b.room) + '<small>' + esc(b.ch || '') + (t && t.due ? '・次のIN ' + md(t.due.slice(0, 10)) + ' ' + hm(t.due) : '・次の予約なし') + '</small></span>'
-          + '<span class="chip ' + s.cls + '">' + s.label + '</span></button>';
+          + stBox(t) + '</button>';
       }).join('') + '</div>';
     }
     return h;
@@ -339,6 +387,35 @@
       + '<i style="background:var(--matcha-bg)"></i>清掃済み<i style="background:var(--amber-bg)"></i>未清掃<i style="background:var(--red-bg)"></i>今日締切・期限切れ<i style="background:var(--gray-bg)"></i>予定</div>';
   }
 
+  // ---------------------------------------------------------------- 更新の表示と、引っ張って更新
+  let loadedAt = 0;
+  function updLabel() {
+    const m = loadedAt ? Math.floor((Date.now() - loadedAt) / 60000) : -1;
+    const made = (D && D.bookings && D.bookings.made) || '';
+    document.getElementById('upd').textContent = (m < 0 ? '' : m === 0 ? 'たった今更新' : m + '分前に更新') + '・引っ張って更新'
+      + (made ? '（予約は ' + made.slice(11, 16) + ' 時点）' : '');
+  }
+  (() => {
+    let y0 = null, pulling = false;
+    const pull = document.getElementById('pull');
+    window.addEventListener('touchstart', (e) => { y0 = window.scrollY <= 0 && !document.querySelector('.sheet.on, .lbx.on') ? e.touches[0].clientY : null; }, { passive: true });
+    window.addEventListener('touchmove', (e) => {
+      if (y0 === null) return;
+      const dy = e.touches[0].clientY - y0;
+      pulling = dy > 70;
+      pull.style.height = Math.min(Math.max(dy / 2, 0), 40) + 'px';
+      pull.style.lineHeight = pull.style.height;
+      pull.textContent = pulling ? '↓ 離すと更新' : '↓ 引っ張って更新';
+    }, { passive: true });
+    window.addEventListener('touchend', () => {
+      if (y0 === null) return;
+      if (pulling) { pull.textContent = '更新中…'; load(true).finally(() => { pull.style.height = '0'; }); }
+      else pull.style.height = '0';
+      y0 = null; pulling = false;
+    });
+  })();
+  setInterval(updLabel, 30000);
+
   // ---------------------------------------------------------------- 部屋の詳細
   function openSheet(title, sub, body) {
     document.getElementById('sTitle').textContent = title;
@@ -350,46 +427,46 @@
   }
   function closeSheet() { cur = null; document.getElementById('sheet').classList.remove('on'); }
 
-  function guestBox(label, b, kind) {
-    if (!b) return '<div class="box"><div class="lb">' + label + '</div><div class="kv"><span class="v" style="color:var(--sub)">予約なし</span></div></div>';
-    return '<div class="box"><div class="lb">' + label + '</div>'
-      + '<div class="kv"><span class="k">' + (kind === 'in' ? 'IN' : 'OUT') + '</span><span class="v">' + mdw(kind === 'in' ? b.in : b.out) + ' ' + (kind === 'in' ? b.tin : b.tout) + '</span></div>'
-      + (b.guest ? '<div class="kv"><span class="k">ゲスト</span><span class="v">' + esc(b.guest) + (b.n ? '（' + b.n + '名）' : '') + '</span></div>' : '')
-      + '<div class="kv"><span class="k">予約経路</span><span class="v">' + esc(b.ch || '不明') + '</span></div>'
-      + '<div class="kv"><span class="k">滞在</span><span class="v">' + md(b.in) + '〜' + md(b.out) + '</span></div></div>';
+  const nights = (b) => Math.round((Date.parse(b.out) - Date.parse(b.in)) / 86400000);
+  function guestCard(b, kind, t) {
+    const next = kind === 'in';
+    if (!b) return '<div class="g' + (next ? ' next' : '') + '"><div class="lb">' + (next ? '次のゲスト IN' : '前のゲスト OUT') + '</div><div class="nm2" style="margin-top:8px">予約なし</div></div>';
+    const time = next ? ((t && t.due && t.due.slice(0, 10) === b.in) ? hm(t.due) : b.tin) : b.tout;
+    const tag = next ? (t && /アーリー/.test(t.deadline) ? '<span class="tag early">アーリー</span>' : '')
+                     : (/レイト/.test((t && t.note) || '') ? '<span class="tag late">レイト</span>' : '');
+    return '<div class="g' + (next ? ' next' : '') + '"><div class="lb">' + (next ? '次のゲスト IN' : '前のゲスト OUT') + '</div>'
+      + '<div class="tt">' + md(next ? b.in : b.out) + ' ' + time + '</div>' + tag
+      + '<div class="nm2">' + esc(b.guest || '（名前なし）') + (b.n ? '<span style="font-weight:400">（' + b.n + '名）</span>' : '') + '</div>'
+      + '<div class="mt">' + esc(b.ch || '不明') + '・' + nights(b) + '泊</div></div>';
   }
 
   async function openDetail(room, day, kind, taskId) {
     let t = taskId ? T().find(x => x.id === taskId) : kind === 'in' ? taskDue(room, day) : taskOut(room, day);
-    if (t && !taskId) taskId = t.id;
-    const cleanDay = t ? t.day : kind === 'out' ? day : '';
     const nxt = kind === 'in' ? inOn(room, day) : nextOf(room, t && t.day ? t.day : day);
     const prv = kind === 'out' ? outOn(room, day) : prevOf(room, nxt ? nxt.in : day);
     cur = { room, day, kind, taskId: t ? t.id : '' };
-    const s = st(t);
-    let h = '<div class="box"><div class="lb">清掃</div>'
-      + '<div class="kv"><span class="k">状態</span><span class="v"><span class="chip ' + s.cls + '">' + s.label + '</span></span></div>'
-      + (t ? '<div class="kv"><span class="k">期限</span><span class="v">' + esc(t.deadline || (t.due ? mdw(t.due.slice(0, 10)) + ' ' + hm(t.due) : '次の予約なし')) + '</span></div>'
-           + (cleanDay ? '<div class="kv"><span class="k">清掃日</span><span class="v">' + mdw(cleanDay) + ' 〜（チェックアウト後）</span></div>' : '')
-           + (t.doneAt ? '<div class="kv"><span class="k">完了</span><span class="v">' + mdw(t.doneAt.slice(0, 10)) + ' ' + hm(t.doneAt) + '・写真' + t.photos + '枚</span></div>' : '')
-         : '<div class="kv"><span class="v" style="color:var(--sub)">この日の清掃タスクはありません（空室だった部屋など）</span></div>')
-      + (t && t.note ? '<div class="note" style="margin-top:8px">' + esc(t.note) + '</div>' : '') + '</div>';
-    h += guestBox('次のゲスト', nxt, 'in') + guestBox('前のゲスト', prv, 'out');
+    let h = (t && t.note ? '<div class="note" style="margin-bottom:12px">' + esc(t.note) + '</div>' : '')
+      + '<div class="guests">' + guestCard(prv, 'out', t) + '<div class="arrow">→</div>' + guestCard(nxt, 'in', t) + '</div>';
     if (t) {
-      h += '<div class="box"><div class="lb">写真</div><div class="photos" id="dPhotos">' + (t.photos || t.status === '完了' ? '<div class="empty" style="grid-column:1/-1">読み込み中…</div>' : '<div class="empty" style="grid-column:1/-1">まだありません</div>') + '</div></div>';
-      h += '<div class="box"><div class="lb">運営メモ（清掃会社の画面にも出ます）</div><textarea id="dMemo" placeholder="例：シーツを2セット使う">' + esc(t.memo) + '</textarea>'
-        + '<div class="btns" style="margin-top:8px"><button class="btn full" data-act="memo">メモを保存</button></div></div>';
-      h += '<div class="box"><div class="lb">操作</div><div class="btns">'
-        + (t.status === '完了' ? '<button class="btn dan full" data-act="op" data-v="undo">完了を取り消す（写真も外れます）</button>'
+      h += '<div class="btns">' + (t.status === '完了' ? '<button class="btn dan full" data-act="op" data-v="undo">完了を取り消す</button>'
           : t.status === 'キャンセル' ? '<button class="btn full" data-act="op" data-v="restore">清掃不要を元に戻す</button>'
-          : '<button class="btn pri" data-act="op" data-v="complete">完了にする</button><button class="btn dan" data-act="op" data-v="cancel">清掃不要にする</button>')
-        + '</div><div class="lb" style="margin-top:12px">期限を直す</div><input type="datetime-local" id="dDue" value="' + (t.due ? t.due.slice(0, 16) : '') + '">'
-        + '<div class="btns" style="margin-top:8px"><button class="btn full" data-act="due">期限を保存</button></div></div>';
+          : '<button class="btn pri" data-act="op" data-v="complete">完了にする</button><button class="btn dan" data-act="op" data-v="cancel">清掃不要にする</button>') + '</div>';
+      h += '<div class="sec">写真' + (t.doneAt ? '<span style="font-weight:400">（' + mdw(t.doneAt.slice(0, 10)) + ' ' + hm(t.doneAt) + ' 完了）</span>' : '') + '</div>'
+        + '<div class="photos" id="dPhotos">' + (t.photos || t.status === '完了' ? '<div class="empty" style="grid-column:1/-1">読み込み中…</div>' : '<div class="empty" style="grid-column:1/-1">完了すると清掃会社の写真がここに並びます</div>') + '</div>';
+      h += '<div class="sec">運営メモ<span style="font-weight:400">（清掃会社の画面にも出ます）</span></div><textarea id="dMemo" placeholder="例：シーツを2セット使う">' + esc(t.memo) + '</textarea>'
+        + '<div style="text-align:right"><button class="link" data-act="memo">保存</button></div>';
+      h += '<div class="sec">期限</div><div class="rowline"><span>' + (t.due ? mdw(t.due.slice(0, 10)) + ' ' + hm(t.due) : '次の予約なし') + '</span><button class="link" data-act="dueEdit">変更</button></div>'
+        + '<div id="dueBox" style="display:none;margin-top:8px"><input type="datetime-local" id="dDue" value="' + (t.due ? t.due.slice(0, 16) : '') + '">'
+        + '<div class="btns" style="margin-top:8px"><button class="btn full" data-act="due">この期限にする</button></div></div>';
     } else {
-      h += '<div class="btns"><button class="btn pri full" data-act="add" data-room="' + esc(room) + '" data-day="' + day + '">この部屋に臨時の清掃を追加</button></div>';
+      h += '<div class="box"><div class="kv"><span class="v" style="color:var(--sub)">前の清掃のあとチェックアウトが無かった部屋です（空室から）</span></div></div>'
+        + '<div class="btns"><button class="btn pri full" data-act="add" data-room="' + esc(room) + '" data-day="' + day + '">この部屋に臨時の清掃を追加</button></div>';
     }
-    h += '<div class="box" style="margin-top:12px"><div class="lb">この部屋の最近の清掃</div><div class="hist" id="dHist"><div class="empty">読み込み中…</div></div></div>';
+    h += '<div class="sec">この部屋の最近の清掃</div><div class="box hist" id="dHist" style="padding:4px 12px"><div class="empty">読み込み中…</div></div>';
     openSheet(room, (kind === 'in' ? 'チェックイン ' : 'チェックアウト ') + mdw(day), h);
+    const shead = document.querySelector('.shead');
+    const old = shead.querySelector('.st'); if (old) old.remove();
+    shead.querySelector('.x').insertAdjacentHTML('beforebegin', stBox(t));
     if (t && (t.photos || t.status === '完了')) loadPhotos(t.id, 'dPhotos');
     try {
       const r = await api('admin_history', { room });
@@ -467,6 +544,7 @@
     const ds = days();
     try {
       D = await api('admin_data', { from: ds[0], to: ds[6] });
+      loadedAt = Date.now();
       try { localStorage.setItem(CACHE_KEY, JSON.stringify(D)); } catch (e) {}
       render();
     } catch (e) {
@@ -480,7 +558,8 @@
     if (e.target.closest('#ask')) return;
     const b = e.target.closest('[data-act]'); if (!b) return;
     const a = b.dataset.act, v = b.dataset.v;
-    if (a === 'week') { weekOff = v === '0' ? 0 : weekOff + Number(v); selDay = ''; render(); load(true); }
+    if (a === 'week') { weekOff = weekOff + Number(v); selDay = ''; render(); load(true); }
+    else if (a === 'today') { const moved = weekOff !== 0; weekOff = 0; selDay = D ? D.today : ''; render(); if (moved) load(true); }
     else if (a === 'tab') { tab = v; render(); }
     else if (a === 'day') { selDay = v; render(); }
     else if (a === 'open') openDetail(b.dataset.room, b.dataset.day, b.dataset.kind);
@@ -492,6 +571,7 @@
     else if (a === 'op') doSet(v);
     else if (a === 'memo') doSet('memo', document.getElementById('dMemo').value.trim());
     else if (a === 'due') { const x = document.getElementById('dDue').value; if (!x) { toast('期限を選んでください', true); return; } doSet('due', x); }
+    else if (a === 'dueEdit') { const x = document.getElementById('dueBox'); x.style.display = x.style.display === 'none' ? 'block' : 'none'; }
     else if (a === 'add') addForm(b.dataset.room, b.dataset.day);
     else if (a === 'addSave') addSave();
   });

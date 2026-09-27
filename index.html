@@ -68,7 +68,27 @@
   .row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 12px 13px 14px; border: 0; background: none;
     text-align: left; transition: background .15s; }
   .row + .row { border-top: 1px solid var(--line); }
-  button.row:active { background: var(--matcha-bg); }
+  div.row[data-act] { cursor: pointer; }
+  div.row[data-act]:active { background: var(--matcha-bg); }
+  button.cam { border: 0; padding: 0; }
+  button.cam:active { transform: scale(.92); }
+
+  /* 部屋の画面（入室方法） */
+  .rbody { flex: 1; overflow-y: auto; padding: 14px 16px 12px; }
+  .rsec { font-size: 12px; font-weight: 700; color: var(--sub); margin: 4px 2px 8px; }
+  .key { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; }
+  .key .kind { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--matcha-bg); color: var(--matcha-ink); }
+  .key.spare .kind { background: var(--line); color: var(--sub); }
+  .key .warnTag { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--red-bg); color: var(--red); margin-left: 6px; }
+  .key .place { font-size: 14px; margin-top: 8px; line-height: 1.5; }
+  .key .code { display: flex; gap: 18px; margin-top: 8px; }
+  .key .code div { font-size: 11px; color: var(--sub); }
+  .key .code b { display: block; font-size: 26px; color: var(--ink); letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+  .key .knote { font-size: 12px; color: var(--sub); margin-top: 6px; line-height: 1.5; }
+  .rfoot { padding: 10px 16px calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+  .bigBtn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 56px; border: 0; border-radius: 16px;
+    background: var(--matcha); color: #fff; font-size: 17px; font-weight: 700; }
+  .bigBtn svg { width: 22px; height: 22px; }
   .tm { width: 46px; flex: none; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
   .day.hot .tm { color: var(--red); }
   .day.none .tm { color: var(--muted); }
@@ -206,6 +226,12 @@
     <button class="x" data-act="closeViewer" aria-label="閉じる"></button></div>
   <div class="grid" id="vGrid"></div>
   <div class="vfoot"><button id="vUndo">完了を取り消す</button></div>
+</div>
+<div class="viewer" id="roomSheet">
+  <div class="vhead"><div class="t"><b id="rRoom"></b><span id="rWhen"></span></div>
+    <button class="x" data-act="closeRoom" aria-label="閉じる"></button></div>
+  <div class="rbody" id="rBody"></div>
+  <div class="rfoot"><button class="bigBtn" id="rPick"></button></div>
 </div>
 <div class="lb" id="lb"><div class="strip" id="lbStrip"></div><button class="x" data-act="closeLb" aria-label="閉じる"></button><div class="count" id="lbCount"></div></div>
 <div class="toast" id="toast"></div>
@@ -392,8 +418,10 @@
     const note = t.note && !j ? '<span class="note">' + esc(t.note) + '</span>' : '';
     const inner = '<div class="tm">' + (t.due ? hm(t.due) : '—') + '</div><div class="nm">' + esc(t.room) + sub + note + '</div>'
       + (j ? miniRing(j) : '<div class="cam">' + ICON_CAM + '</div>');
-    return j ? '<div class="row">' + inner + '</div>'
-             : '<button class="row" data-act="pick" data-id="' + t.id + '" aria-label="' + esc(t.room) + ' の写真を選んで完了">' + inner + '</button>';
+    if (j) return '<div class="row">' + inner + '</div>';
+    // カメラのボタン＝そのまま写真を選ぶ。それ以外のところ＝部屋の画面（入室方法と「写真を選んで完了」）（ishiiさん 2026-09-27）
+    return '<div class="row" role="button" tabindex="0" data-act="room" data-id="' + t.id + '">'
+      + inner.replace('<div class="cam">', '<button class="cam" data-act="pick" data-id="' + t.id + '" aria-label="' + esc(t.room) + ' の写真を選んで完了">').replace(/<\/div>$/, '</button>') + '</div>';
   }
 
   function setRing(done, total) {
@@ -585,10 +613,42 @@
     }
   }
 
+  // ---------------------------------------------------------------- 部屋の画面（入室方法）
+  // 番号はNotion「🔑 キーボックス管理」から開くたびに読む（端末には残さない）
+  let roomOpen = null;
+  async function openRoom(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    roomOpen = id;
+    document.getElementById('rRoom').textContent = t.room;
+    document.getElementById('rWhen').textContent = t.due ? rel(dueDay(t)) + ' ' + hm(t.due) + 'まで' + (/アーリー/.test(t.deadline) ? '（アーリー）' : '') : '次の予約なし';
+    document.getElementById('rPick').innerHTML = ICON_CAM + '写真を選んで完了';
+    document.querySelector('#roomSheet .x').innerHTML = ICON_X;
+    const body = document.getElementById('rBody');
+    body.innerHTML = (t.note ? '<div class="note" style="margin:0 0 14px">' + esc(t.note) + '</div>' : '')
+      + '<div class="rsec">入室方法</div><div id="rKeys"><div class="key"><div class="knote">読み込み中…</div></div></div>';
+    document.getElementById('roomSheet').classList.add('on');
+    try {
+      const d = await api('access', { room: t.room });
+      if (roomOpen !== id) return;
+      document.getElementById('rKeys').innerHTML = d.items.length ? d.items.map(k =>
+        '<div class="key' + (k.kind === 'ゲスト用' ? '' : ' spare') + '"><span class="kind">' + (k.kind === 'ゲスト用' ? 'ゲスト用' : 'スタッフ用スペア') + '</span>'
+        + (k.warn ? '<span class="warnTag">要注意</span>' : '')
+        + (k.place ? '<div class="place">' + esc(k.place) + '</div>' : '')
+        + '<div class="code">' + (k.post ? '<div>ポスト<b>' + esc(k.post) + '</b></div>' : '') + (k.box ? '<div>キーボックス<b>' + esc(k.box) + '</b></div>' : '') + '</div>'
+        + (k.note ? '<div class="knote">' + esc(k.note) + '</div>' : '') + '</div>').join('')
+        : '<div class="key"><div class="knote">この部屋の入室方法が登録されていません</div></div>';
+    } catch (e) {
+      if (!e.silent && roomOpen === id) document.getElementById('rKeys').innerHTML = '<div class="key"><div class="knote">入室方法を読み込めませんでした。電波の良い所で開き直してください</div></div>';
+    }
+  }
+  function closeRoom() { roomOpen = null; document.getElementById('roomSheet').classList.remove('on'); document.getElementById('rKeys') && (document.getElementById('rBody').innerHTML = ''); }
+  document.getElementById('rPick').addEventListener('click', () => { const id = roomOpen; closeRoom(); if (id) pick(id); });
+
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
-    ({ pick: pick, undo: undo, view: view, zoom: (i) => zoom(+i), closeViewer: closeViewer, closeLb: closeLb,
+    ({ room: openRoom, closeRoom: closeRoom, pick: pick, undo: undo, view: view, zoom: (i) => zoom(+i), closeViewer: closeViewer, closeLb: closeLb,
        others: () => { showOthers = !showOthers; render(); } })[b.dataset.act](b.dataset.id);
   });
   window.addEventListener('online', pump);
