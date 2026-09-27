@@ -45,7 +45,8 @@
 
   /* 見出し */
   header { display: flex; align-items: center; gap: 14px; margin: 4px 2px 22px; }
-  h1 { font-size: 26px; font-weight: 700; margin: 0; letter-spacing: .02em; }
+  h1 { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+  h1 .lbl { font-size: 12px; font-weight: 700; color: var(--sub); background: var(--line); padding: 3px 8px; border-radius: 999px; margin-right: 8px; vertical-align: 3px; letter-spacing: 0; }
   .sub { color: var(--sub); font-size: 13px; margin-top: 3px; }
   #sync { color: var(--muted); }
   /* 見出しは「清掃」の文字をやめて本日の日付に（ishiiさん 2026-09-28） */
@@ -535,7 +536,7 @@
     const js = {}; (await jobs()).forEach(j => js[j.id] = j);
     const live = (id) => js[id] && js[id].state !== 'completing' ? js[id] : null;
     const todo = tasks.filter(t => !t.done), done = tasks.filter(t => t.done);
-    document.getElementById('date').textContent = today ? '本日 ' + dwk(today) : ' ';
+    document.getElementById('date').innerHTML = today ? '<span class="lbl">本日</span>' + dwk(today) : ' ';
     document.getElementById('sum').innerHTML = today && summary ? gauge(summary) : '';
     if (!today) return;
 

@@ -38,7 +38,8 @@
   main { max-width: 560px; margin: 0 auto; padding: calc(18px + env(safe-area-inset-top)) 14px calc(40px + env(safe-area-inset-bottom)); }
 
   header { display: flex; align-items: flex-end; justify-content: space-between; margin: 4px 4px 14px; }
-  h1 { font-size: 24px; font-weight: 700; margin: 0; }
+  h1 { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+  h1 .lbl { font-size: 12px; font-weight: 700; color: var(--sub); background: var(--gray-bg); padding: 3px 8px; border-radius: 999px; margin-right: 8px; vertical-align: 3px; letter-spacing: 0; }
   .sub { color: var(--sub); font-size: 12px; margin-top: 3px; }
 
   /* 引っ張って更新・今日のまとめ */
@@ -381,7 +382,7 @@
   function render() {
     if (!D) return;
     const today = D.today, ds = days(), made = (D.bookings && D.bookings.made) || '';
-    document.getElementById('sub').textContent = '本日 ' + md(today) + '（' + WD[new Date(today + 'T00:00:00Z').getUTCDay()] + '）';   // 「清掃の管理」の文字はやめて本日の日付（ishiiさん 2026-09-28）
+    document.getElementById('sub').innerHTML = '<span class="lbl">本日</span>' + md(today) + '（' + WD[new Date(today + 'T00:00:00Z').getUTCDay()] + '）';   // 「清掃の管理」の文字はやめて本日の日付（ishiiさん 2026-09-28）
     document.getElementById('range').textContent = md(ds[0]) + '〜' + md(ds[6]);
 
     document.getElementById('tabDay').className = tab === 'day' ? 'on' : '';
