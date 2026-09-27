@@ -122,6 +122,7 @@
   .pchip { font-size: 13px; font-weight: 600; padding: 5px 10px; border-radius: 999px; background: var(--card); color: var(--muted); border: 1px solid var(--line); }
   .pchip.on { background: var(--blue); color: #fff; border-color: var(--blue); }
   .phist { font-size: 12px; color: var(--blue); line-height: 1.6; }
+  .pgrid.part { margin: 10px 0 0; }
   .chkl { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 2px 14px; margin-bottom: 14px; }
   .chkl label { display: flex; align-items: center; gap: 12px; padding: 13px 0; font-size: 16px; }
   .chkl label + label { border-top: 1px solid var(--line); }
@@ -729,6 +730,7 @@
     document.getElementById('rPick').classList.remove('two');
     document.getElementById('rPick').classList.add('sub');   // 緑の外枠（ishiiさん 2026-09-28）
     loadKeys(t.room, id);
+    if (t.partial) partPhotos(id);
   }
   async function loadKeys(room, id) {
     try {
@@ -821,7 +823,18 @@
     const items = PART_ITEMS.filter(i => i !== 'その他' || done.has(i));
     return '<div class="rsec">途中まで清掃済み</div><div class="prog"><div class="pchips">'
       + items.map(i => '<span class="pchip' + (done.has(i) ? ' on' : '') + '">' + (done.has(i) ? '✓ ' : '') + i + '</span>').join('') + '</div>'
-      + segs.map(x => '<div class="phist">' + esc(x) + '</div>').join('') + '</div>';
+      + segs.map(x => '<div class="phist">' + esc(x) + '</div>').join('') + '<div class="pgrid part" id="rPartPhotos"></div></div>';
+  }
+  // 途中の報告で送った写真（ページ本文の写真）を最初から一覧で出す。1枚押すと大きく
+  async function partPhotos(id) {
+    const box = document.getElementById('rPartPhotos');
+    if (!box) return;
+    try {
+      const d = await api('photos', { id: id });
+      if (!box.isConnected || roomOpen !== id) return;
+      lbUrls = d.urls;
+      box.innerHTML = d.urls.map((u, i) => '<button data-act="zoom" data-id="' + i + '"><img src="' + esc(u) + '" loading="lazy" alt=""></button>').join('');
+    } catch (e) { /* 写真が読めなくても報告の中身は出ている */ }
   }
   function closePart() { partOpen = null; partFiles = []; document.getElementById('partSheet').classList.remove('on'); }
   document.getElementById('partPick').addEventListener('change', (ev) => {
