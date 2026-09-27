@@ -378,10 +378,11 @@
     const overdue = T().filter(t => t.status !== '完了' && t.status !== 'キャンセル' && t.due && t.due.slice(0, 10) < today).length;
     const sm = D.summary || { in: insT.length, done: ready, late: overdue };   // 受け口の数（清掃画面と同じ）
     document.getElementById('sum').innerHTML = gauge(sm);
-    document.getElementById('todayBtn').style.visibility = (weekOff || selDay !== today) ? 'visible' : 'hidden';
     updLabel();
 
     document.getElementById('view').innerHTML = tab === 'day' ? dayView(ds) : gridView(ds);
+    // 「今日」ボタンは今日以外を見ているときだけ（選んだ日は dayView で決まるので、その後で判定する）
+    document.getElementById('todayBtn').style.visibility = (weekOff || (tab === 'day' && selDay !== today)) ? 'visible' : 'hidden';
     document.getElementById('foot').textContent = D.bookings && D.bookings.ok && (D.bookings.ok.AirHost === false || D.bookings.ok['麻布十番'] === false)
       ? '予約の一部が読めていません（' + Object.keys(D.bookings.ok).filter(k => !D.bookings.ok[k]).join('・') + '）' : '';
   }
