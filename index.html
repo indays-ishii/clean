@@ -27,11 +27,13 @@
     --bg: #f6f6f2; --card: #ffffff; --ink: #1d1f1b; --sub: #6d7169; --muted: #a4a79f; --line: #e6e7e1; --line2: #d5d7cf;
     --matcha: #5b8e3e; --matcha-ink: #3f6a28; --matcha-bg: #edf3e6;
     --red: #c4442c; --red-line: #eeb8ab; --red-bg: #fcefeb; --amber: #8a6512; --amber-bg: #fbf3df;
+    --blue: #2f5f9e; --blue-bg: #e8eff9;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #121411; --card: #1b1d1a; --ink: #eef0ea; --sub: #a1a59c; --muted: #6c7068; --line: #2a2d28; --line2: #3a3e37;
       --matcha: #7fb65c; --matcha-ink: #a9d68a; --matcha-bg: #1f2c18;
-      --red: #ff7a5e; --red-line: #6e2f23; --red-bg: #2f1a15; --amber: #e0b85a; --amber-bg: #2c2512; }
+      --red: #ff7a5e; --red-line: #6e2f23; --red-bg: #2f1a15; --amber: #e0b85a; --amber-bg: #2c2512;
+      --blue: #8fb4ea; --blue-bg: #1a2436; }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--ink);
@@ -56,7 +58,7 @@
   .row + .row { border-top: 1px solid var(--line); }
   div.row[data-act] { cursor: pointer; }
   div.row[data-act]:active { background: var(--matcha-bg); }
-  button.cam { border: 0; padding: 0; }
+  button.cam { padding: 0; }
   button.cam:active { transform: scale(.92); }
 
   /* 部屋の画面（入室方法） */
@@ -82,7 +84,8 @@
   .nm small.warn { color: var(--red); }
   .nm .note { display: block; font-size: 12px; font-weight: 400; color: var(--amber); background: var(--amber-bg);
     border-radius: 8px; padding: 5px 8px; margin-top: 6px; line-height: 1.45; }
-  .cam { width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--matcha); color: #fff;
+  /* カメラも緑の外枠だけ（ishiiさん 2026-09-28） */
+  .cam { width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--card); color: var(--matcha-ink); border: 2px solid var(--matcha);
     display: flex; align-items: center; justify-content: center; }
   .cam svg { width: 20px; height: 20px; }
   .mini { width: 40px; height: 40px; flex: none; }
@@ -100,6 +103,25 @@
   .vhead .t { flex: 1; min-width: 0; }
   .vhead .t b { display: block; font-size: 18px; }
   .vhead .t span { font-size: 12px; color: var(--sub); }
+  /* 期限は大事なので大きく（色の帯は付けない。今日・過ぎたものは赤） */
+  .rWhen { font-size: 12px; color: var(--sub); margin-top: 2px; }
+  .rWhen .dl { display: block; font-size: 11px; color: var(--sub); margin-top: 6px; }
+  .rWhen b { font-size: 18px; color: var(--ink); }
+  .rWhen.hot b { color: var(--red); }
+  .rWhen .tag { vertical-align: 3px; margin-left: 0; }
+  .rfoot .bigBtn { flex: 1; width: auto; min-width: 0; font-size: 15px; gap: 6px; padding: 0 6px; white-space: nowrap; }
+  .rfoot .bigBtn.two { white-space: normal; }
+  .rfoot .bigBtn svg { width: 19px; height: 19px; }
+  .rfoot #rPick { flex: 1.25; }
+  .tag.part { background: var(--blue-bg); color: var(--blue); }
+  .nm small.part { color: var(--blue); }
+  /* 途中まで清掃報告 */
+  .chkl { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 2px 14px; margin-bottom: 14px; }
+  .chkl label { display: flex; align-items: center; gap: 12px; padding: 13px 0; font-size: 16px; }
+  .chkl label + label { border-top: 1px solid var(--line); }
+  .chkl input { width: 22px; height: 22px; accent-color: var(--matcha); }
+  .pmemo { width: 100%; min-height: 70px; font: inherit; font-size: 15px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line2); background: var(--card); color: var(--ink); margin-bottom: 14px; }
+  .ppick { display: block; width: 100%; border: 1px dashed var(--line2); background: var(--card); border-radius: 12px; padding: 12px; color: var(--matcha-ink); font-size: 14px; font-weight: 600; }
   .vhead .t .rToday { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }   /* 部屋の画面にも本日の日付を小さく */
   .x { width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--line); color: var(--ink); flex: none;
     display: flex; align-items: center; justify-content: center; }
@@ -255,11 +277,18 @@
   </div>
 </div>
 <div class="viewer" id="roomSheet">
-  <div class="vhead"><div class="t"><span class="rToday" id="rToday"></span><b id="rRoom"></b><span id="rWhen"></span></div>
+  <div class="vhead"><div class="t"><span class="rToday" id="rToday"></span><b id="rRoom"></b><div class="rWhen" id="rWhen"></div></div>
     <button class="x" data-act="closeRoom" aria-label="閉じる"></button></div>
   <div class="rbody" id="rBody"></div>
   <div class="rfoot"><button class="bigBtn two sub" id="rAdd" hidden></button><button class="bigBtn" id="rPick"></button></div>
 </div>
+<div class="viewer" id="partSheet">
+  <div class="vhead"><div class="t"><span class="rToday">途中まで清掃報告</span><b id="pRoom"></b><span>やったことに印をつけてください</span></div>
+    <button class="x" data-act="closePart" aria-label="閉じる"></button></div>
+  <div class="rbody" id="pBody"></div>
+  <div class="rfoot"><button class="bigBtn sub" id="pSend">途中まで報告する</button></div>
+</div>
+<input type="file" id="partPick" accept="image/*" multiple hidden>
 <div class="lb" id="lb"><div class="strip" id="lbStrip"></div><button class="x" data-act="closeLb" aria-label="閉じる"></button><div class="count" id="lbCount"></div></div>
 <div class="toast" id="toast"></div>
 
@@ -436,7 +465,8 @@
     sub = j ? jobNote(j) : sub ? '<small>' + sub + '</small>' : '';
     const note = t.note && !j ? '<span class="note">' + esc(t.note) + '</span>' : '';
     const inner = '<div class="tm">' + (t.due ? hm(t.due) + '<small>まで</small>' : '—') + '</div><div class="nm">' + roomName(t.room)
-      + (early ? '<span class="tag early">アーリーIN</span>' : '') + sub + note + '</div>'
+      + (early ? '<span class="tag early">アーリーIN</span>' : '') + (t.partial ? '<span class="tag part">途中</span>' : '') + sub
+      + (t.partial && !j ? '<small class="part">' + esc(t.partial.split('／').pop()) + '</small>' : '') + note + '</div>'
       + (j ? miniRing(j) : isLater ? '<span class="stay">滞在中</span>' : '<div class="cam">' + ICON_CAM + '</div>');
     if (j) return '<div class="row">' + inner + '</div>';
     // カメラのボタン＝そのまま写真を選ぶ。それ以外のところ＝部屋の画面（入室方法と「写真を選んで完了」）（ishiiさん 2026-09-27）
@@ -504,7 +534,7 @@
     if (!today) return;
 
     const now = todo.filter(t => !later(t)), next = todo.filter(later);
-    const extra = Object.values(js).filter(j => /^(room|add):/.test(j.id) && j.state !== 'completing');   // 新規の清掃・写真の追加で送信中
+    const extra = Object.values(js).filter(j => /^(room|add|part):/.test(j.id) && j.state !== 'completing');   // 新規の清掃・写真の追加で送信中
     let h = '<div class="sec"><b>清掃待ち</b><span>' + (now.length + extra.length) + '部屋</span></div><div class="card now">'
       + (extra.length ? '<div class="grp"><div class="dh">送信中</div>' + extra.map(j => row({ id: j.id, room: j.room, due: '', deadline: '' }, j)).join('') + '</div>' : '')
       + (now.length || extra.length ? timeline(now, false, live) : '<div class="none">' + ICON_LEAF + '清掃待ちの部屋はありません</div>') + '</div>';
@@ -600,6 +630,12 @@
           };
           await Promise.all(Array.from({ length: PARALLEL }, worker));
           const room = job.id.indexOf('room:') === 0 ? job.id.slice(5) : '';
+          if (job.id.indexOf('part:') === 0) {   // 途中まで清掃報告（完了にはしない）
+            job.state = 'completing'; await putJob(job);
+            setData(await api('partial', { id: job.id.slice(5), items: job.items || [], memo: job.memo || '', uploads: job.uploads.filter(Boolean) }));
+            await delJob(job.id); render(); toast(job.room + ' 途中まで報告しました');
+            continue;
+          }
           if (job.id.indexOf('add:') === 0) {   // 前回の清掃に写真を足すだけ（完了時刻は変えない）
             job.state = 'completing'; await putJob(job);
             setData(await api('addPhotos', { id: job.id.slice(4), uploads: job.uploads.filter(Boolean) }));
@@ -664,22 +700,28 @@
 
   // ---------------------------------------------------------------- 部屋の画面（入室方法）
   // 番号はNotion「🔑 キーボックス管理」から開くたびに読む（端末には残さない）
-  let roomOpen = null, addTo = null;   // addTo：「前回の清掃に写真を追加」の相手（id は add:ページID）
+  let roomOpen = null, leftAct = null;   // leftAct：部屋の画面の左のボタン（途中まで清掃報告／前回の清掃に写真を追加）
   async function openRoom(id) {
     const t = tasks.find(x => x.id === id);
     if (!t) return;
     roomOpen = id;
     document.getElementById('rToday').textContent = '本日 ' + dwk(today);
     document.getElementById('rRoom').textContent = t.room;
-    document.getElementById('rWhen').textContent = t.due ? dwk(dueDay(t)) + hm(t.due) + 'まで' + (/アーリー/.test(t.deadline) ? '（アーリーIN）' : '') : '次の予約なし';
-    document.getElementById('rPick').innerHTML = ICON_CAM + '写真を選んで完了';
+    const w = document.getElementById('rWhen');
+    w.className = 'rWhen' + (t.due && dueDay(t) <= today ? ' hot' : '');
+    w.innerHTML = '<span class="dl">期限（次のチェックイン）</span>' + (t.due ? '<b>' + dwk(dueDay(t)) + hm(t.due) + 'まで</b>' : '<b>次の予約なし</b>')
+      + (/アーリー/.test(t.deadline) ? ' <span class="tag earlyR">アーリーIN</span>' : '')
+      + (t.partial ? '<br><span class="tag part">途中</span> <small style="color:var(--blue)">' + esc(t.partial.split('／').pop()) + '</small>' : '');
+    document.getElementById('rPick').innerHTML = ICON_CAM + '清掃を報告して完了';
+    const left = document.getElementById('rAdd');   // 左：途中まで清掃報告（ishiiさん 2026-09-28）
+    left.innerHTML = '途中まで清掃報告'; left.classList.remove('two'); left.hidden = false;
+    leftAct = () => openPartial(id);
     const body = document.getElementById('rBody');
     body.innerHTML = guestCards(t.prev, t.next, /アーリー/.test(t.deadline), t.late) + (t.note ? '<div class="note" style="margin:0 0 14px">' + esc(t.note) + '</div>' : '')
       + '<div class="rsec">入室方法</div><div id="rKeys"><div class="key"><div class="knote">読み込み中…</div></div></div>';
     document.getElementById('roomSheet').classList.add('on');
     document.getElementById('rPick').classList.remove('two');
     document.getElementById('rPick').classList.add('sub');   // 緑の外枠（ishiiさん 2026-09-28）
-    document.getElementById('rAdd').hidden = true;
     loadKeys(t.room, id);
   }
   async function loadKeys(room, id) {
@@ -718,14 +760,16 @@
     roomOpen = 'room:' + room;
     document.getElementById('rToday').textContent = '本日 ' + dwk(today);
     document.getElementById('rRoom').textContent = room;
+    document.getElementById('rWhen').className = 'rWhen';
     document.getElementById('rWhen').textContent = o.state === 'stay' ? '滞在中（' + md(o.out) + ' OUT）'
       : lastDone ? md(lastDone.slice(0, 10)) + ' ' + hm(lastDone) + ' 完了' : '清掃の記録なし';
     // 今日の完了だけ、ここから取り消せる（間違えて報告したとき）
     const undoable = lastId && tasks.some(t => t.id === lastId && t.done);
     const btn = document.getElementById('rPick'), add = document.getElementById('rAdd');
     btn.innerHTML = ICON_CAM + '<span>新規の清掃を<br>報告</span>'; btn.classList.add('sub', 'two');
-    add.innerHTML = ICON_ADD + '<span>前回の清掃に<br>写真を追加</span>'; add.hidden = !lastId;
-    addTo = lastId ? { id: 'add:' + lastId, room: room } : null;
+    add.innerHTML = ICON_ADD + '<span>前回の清掃に<br>写真を追加</span>'; add.classList.add('two'); add.hidden = !lastId;
+    const addTo = lastId ? { id: 'add:' + lastId, room: room } : null;
+    leftAct = () => { if (addTo) pick(addTo.id, addTo.room); };
     const nextB = o.nextIn ? { in: o.nextIn, tin: o.nextTin, n: o.nextN, nights: o.nextNights } : null;
     document.getElementById('rBody').innerHTML = (o.state === 'stay' ? '' : guestCards(null, nextB, false, false)) + (lastId ? '<button class="lastPhotos" data-act="lastPhotos" data-id="' + lastId + '">前回の清掃の写真を見る ›</button><div class="pgrid" id="rPhotos"></div>' : '')
       + '<div class="rsec">入室方法</div><div id="rKeys"><div class="key"><div class="knote">読み込み中…</div></div></div>'
@@ -748,15 +792,53 @@
     } catch (e) { if (!e.silent && box.isConnected) box.innerHTML = '<div class="pmsg">写真を読み込めませんでした</div>'; }
   }
 
+  // ---------------------------------------------------------------- 途中まで清掃報告（ゴミ出しだけ等。完了にはしない）
+  const PART_ITEMS = ['ゴミ出し', 'リネン回収', '換気', '水回り', 'その他'];
+  let partOpen = null, partFiles = [];
+  function openPartial(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    partOpen = id; partFiles = [];
+    document.getElementById('pRoom').textContent = t.room;
+    document.getElementById('pBody').innerHTML = '<div class="chkl">' + PART_ITEMS.map(x => '<label><input type="checkbox" value="' + x + '">' + x + '</label>').join('') + '</div>'
+      + '<div class="rsec">メモ（任意）</div><textarea class="pmemo" id="pMemo" placeholder="例：続きは明日の午前にやります"></textarea>'
+      + '<div class="rsec">写真（任意）</div><button class="ppick" data-act="partPick" id="pPickBtn">＋ 写真を選ぶ</button>';
+    document.getElementById('partSheet').classList.add('on');
+  }
+  function closePart() { partOpen = null; partFiles = []; document.getElementById('partSheet').classList.remove('on'); }
+  document.getElementById('partPick').addEventListener('change', (ev) => {
+    partFiles = Array.from(ev.target.files || []);
+    const b = document.getElementById('pPickBtn');
+    if (b) b.textContent = partFiles.length ? '写真 ' + partFiles.length + '枚（選び直す）' : '＋ 写真を選ぶ';
+  });
+  document.getElementById('pSend').addEventListener('click', async () => {
+    const id = partOpen, t = tasks.find(x => x.id === id);
+    if (!t) return;
+    const items = Array.from(document.querySelectorAll('#pBody input:checked')).map(x => x.value), memo = document.getElementById('pMemo').value.trim();
+    if (!items.length && !memo) { toast('やったことに印をつけてください', true); return; }
+    const files = partFiles;
+    closePart();
+    // 写真の有無にかかわらず送信待ちに入れる（電波が無くても後で送る）
+    const job = { id: 'part:' + id, room: t.room, items: items, memo: memo, photos: [], uploads: [], at: [], state: 'preparing', created: Date.now() };
+    await putJob(job); render();
+    for (const f of files) {
+      try { job.photos.push(await shrink(f)); job.uploads.push(null); job.at.push(0); } catch (e) { /* 読めない写真は飛ばす */ }
+      await putJob(job); render();
+    }
+    job.state = 'sending'; await putJob(job);
+    pump();
+  });
+
   function closeRoom() { roomOpen = null; document.getElementById('roomSheet').classList.remove('on'); document.getElementById('rKeys') && (document.getElementById('rBody').innerHTML = ''); }
   document.getElementById('rPick').addEventListener('click', () => { const id = roomOpen; closeRoom(); if (id) pick(id); });  // 予定の無い部屋は id が room:部屋名 ＝一覧外の清掃として報告
-  document.getElementById('rAdd').addEventListener('click', () => { const a = addTo; closeRoom(); if (a) pick(a.id, a.room); });
+  document.getElementById('rAdd').addEventListener('click', () => { const f = leftAct; closeRoom(); if (f) f(); });
 
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
     ({ roomFree: openRoomFree, lastPhotos: lastPhotos, toAdmin: toAdmin, room: openRoom, closeRoom: closeRoom, pick: pick, zoom: (i) => zoom(+i), closeLb: closeLb,
-       undoLast: (id) => { closeRoom(); undo(id); }, stayToggle: () => { showStay = !showStay; render(); } })[b.dataset.act](b.dataset.id);
+       undoLast: (id) => { closeRoom(); undo(id); }, closePart: closePart,
+       partPick: () => { const p = document.getElementById('partPick'); p.value = ''; p.click(); }, stayToggle: () => { showStay = !showStay; render(); } })[b.dataset.act](b.dataset.id);
   });
   window.addEventListener('online', pump);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { load(); pump(); } });

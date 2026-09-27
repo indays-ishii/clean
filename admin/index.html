@@ -370,9 +370,10 @@
     if (s.cls === 'ok') return '<div class="st ok"><b>完了</b></div>';
     if (t.status === 'キャンセル') return '<div class="st none"><b>清掃不要</b></div>';
     if (s.cls === 'plan') return '<div class="st plan"><b>予定</b><span>' + md(t.day) + ' OUT後</span></div>';
-    if (!t.due) return '<div class="st warn"><b>未完了</b></div>';
+    const lbl = t.status === '途中' ? '途中' : '未完了';   // 途中まで清掃報告あり（完了ではない）
+    if (!t.due) return '<div class="st warn"><b>' + lbl + '</b></div>';
     const m = (new Date(t.due) - new Date()) / 60000;
-    return '<div class="st ' + (m <= 120 ? 'hot' : 'warn') + '"><b>未完了</b><span>' + remain(t.due) + '</span></div>';
+    return '<div class="st ' + (m <= 120 ? 'hot' : 'warn') + '"><b>' + lbl + '</b><span>' + remain(t.due) + '</span></div>';
   }
   const worst = (list) => ['hot', 'warn', 'plan', 'ok', 'none'].find(c => list.includes(c)) || 'none';
 
@@ -520,6 +521,7 @@
       h += '<div class="btns">' + (t.status === '完了' ? '<button class="btn dan full" data-act="op" data-v="undo">完了を取り消す</button>'
           : t.status === 'キャンセル' ? '<button class="btn full" data-act="op" data-v="restore">清掃不要を元に戻す</button>'
           : '<button class="btn pri" data-act="op" data-v="complete">完了にする</button><button class="btn dan" data-act="op" data-v="cancel">清掃不要にする</button>') + '</div>';
+      if (t.partial) h += '<div class="sec">途中の報告</div><div class="box"><div class="kv"><span class="v">' + esc(t.partial).split('／').join('<br>') + '</span></div></div>';
       h += '<div class="sec">写真' + (t.doneAt ? '<span style="font-weight:400">（' + mdw(t.doneAt.slice(0, 10)) + ' ' + hm(t.doneAt) + ' 完了）</span>' : '') + '</div>'
         + '<div class="photos" id="dPhotos">' + (t.photos || t.status === '完了' ? '<div class="empty" style="grid-column:1/-1">読み込み中…</div>' : '<div class="empty" style="grid-column:1/-1">完了すると清掃会社の写真がここに並びます</div>') + '</div>';
       h += '<div class="sec">運営メモ<span style="font-weight:400">（清掃会社の画面にも出ます）</span></div><textarea id="dMemo" placeholder="例：シーツを2セット使う">' + esc(t.memo) + '</textarea>'
