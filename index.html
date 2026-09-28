@@ -126,7 +126,14 @@
   .chkl { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 2px 14px; margin-bottom: 14px; }
   .chkl label { display: flex; align-items: center; gap: 12px; padding: 13px 0; font-size: 16px; }
   .chkl label + label { border-top: 1px solid var(--line); }
-  .chkl input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--matcha); }
+  .pgh { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; margin: 4px 2px 8px; }
+  .pgh svg { width: 24px; height: 24px; color: var(--matcha); flex: none; stroke-width: 2; }
+  /* 印は塗りつぶさず、緑のチェックだけ（ishiiさん 2026-09-28） */
+  .chkl input[type=checkbox] { appearance: none; -webkit-appearance: none; width: 24px; height: 24px; margin: 0; flex: none; border: 2px solid var(--line2);
+    border-radius: 6px; background: var(--card); display: grid; place-content: center; }
+  .chkl input[type=checkbox]:checked { border-color: var(--matcha); }
+  .chkl input[type=checkbox]:checked::before { content: ""; width: 12px; height: 6px; border-left: 3px solid var(--matcha); border-bottom: 3px solid var(--matcha);
+    transform: translateY(-2px) rotate(-45deg); }
   .chkl .pother { display: block; width: 100%; font: inherit; font-size: 15px; padding: 10px 12px; margin: 0 0 12px; border-radius: 10px; border: 1px solid var(--line2); background: var(--bg); color: var(--ink); }
   .chkl .pother[hidden] { display: none; }
   .pmemo { width: 100%; min-height: 70px; font: inherit; font-size: 15px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line2); background: var(--card); color: var(--ink); margin-bottom: 14px; }
@@ -812,12 +819,14 @@
 
   // ---------------------------------------------------------------- 途中まで清掃報告（ゴミ出しだけ等。完了にはしない）
   // 作業の流れの順に分けて並べる（ishiiさん 2026-09-28）。名前に「・」は使わない（報告の中で項目をつなぐ記号なので）
+  // 見出しに緑のアイコン（ゴミ箱・洗濯機・箒・箱・ペン。ishiiさん 2026-09-28）
+  const svgI = (d) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
   const PART_GROUPS = [
-    ['片付け', ['ゴミ出し', '忘れ物チェック']],
-    ['リネン', ['リネン回収', '洗濯乾燥', 'ベッドメイク']],
-    ['掃除', ['水回り', '床掃除', '換気']],
-    ['補充', ['アメニティ補充']],
-    ['その他', ['その他']],
+    ['片付け', ['ゴミ出し', '忘れ物チェック'], svgI('<path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>')],
+    ['リネン', ['リネン回収', '洗濯乾燥', 'ベッドメイク'], svgI('<rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="12" cy="13" r="4"/><path d="M8 6h.01M11 6h.01"/>')],
+    ['掃除', ['水回り', '床掃除', '換気'], svgI('<path d="M20 3l-7.5 7.5"/><path d="M10 9l5 5"/><path d="M10 9l-5.5 5.5C4 17 5.5 19.5 8 20.5l5-6.5"/><path d="M6.5 17.5l2 2M8.5 15.5l2 2"/>')],
+    ['補充', ['アメニティ補充'], svgI('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM12 12l8-4.5M12 12v9M12 12L4 7.5"/>')],
+    ['その他', ['その他'], svgI('<path d="M4 20h4L18.5 9.5a2.8 2.8 0 0 0-4-4L4 16v4M13.5 6.5l4 4"/>')],
   ];
   const PART_ITEMS = PART_GROUPS.reduce((a, g) => a.concat(g[1]), []);
   let partOpen = null, partFiles = [];
@@ -826,7 +835,7 @@
     if (!t) return;
     partOpen = id; partFiles = [];
     document.getElementById('pRoom').textContent = t.room;
-    document.getElementById('pBody').innerHTML = PART_GROUPS.map(g => '<div class="rsec">' + g[0] + '</div><div class="chkl">'
+    document.getElementById('pBody').innerHTML = PART_GROUPS.map(g => '<div class="pgh">' + g[2] + g[0] + '</div><div class="chkl">'
         + g[1].map(x => '<label><input type="checkbox" value="' + x + '"' + (x === 'その他' ? ' id="pOther"' : '') + '>' + x + '</label>').join('')
         + (g[0] === 'その他' ? '<input class="pother" id="pOtherText" placeholder="何をしたか（例：窓拭き）" hidden>' : '') + '</div>').join('')
       + '<div class="rsec">メモ（任意）</div><textarea class="pmemo" id="pMemo" placeholder="例：続きは明日の午前にやります"></textarea>'
