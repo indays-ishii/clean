@@ -46,7 +46,7 @@
   .pull { text-align: center; font-size: 11px; color: var(--muted); height: 0; overflow: hidden; transition: height .15s; }
   .upd { text-align: center; font-size: 11px; color: var(--muted); margin: -4px 0 8px; }
   /* 今日のまとめ：丸いゲージ（清掃画面と同じ。ishiiさん 2026-09-27） */
-  .sum { display: flex; align-items: center; gap: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px; margin-bottom: 12px; }
+  .sum { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px; margin-bottom: 12px; }
   .sum:empty { display: none; }
   .gring { width: 84px; height: 84px; flex: none; }
   .gring circle { fill: none; stroke-width: 8; }
@@ -132,6 +132,20 @@
   .item:active { background: var(--matcha-bg); }
   .item .tm { width: 46px; flex: none; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .item .tm.hot { color: var(--red); }
+  /* チェックインまでの残り時間の円（ishiiさん 2026-09-28）：左は小さく「IN 時刻」、右に円 */
+  .item .tm2 { width: 42px; flex: none; text-align: center; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .item .tm2 small { display: block; font-size: 10px; font-weight: 600; color: var(--sub); }
+  .rw { display: flex; flex-direction: column; align-items: center; width: 60px; flex: none; }
+  .rw svg { display: block; }
+  .rw .rs { font-size: 10px; font-weight: 700; margin-top: 1px; }
+  .rs.r { color: var(--red-ink); } .rs.a { color: var(--amber); } .rs.g { color: var(--matcha-ink); } .rs.k { color: var(--sub); }
+  .remBtn { flex-basis: 100%; border: 2px solid var(--red); color: var(--red-ink); background: var(--card); border-radius: 12px; padding: 10px; font-size: 14px; font-weight: 700; }
+  .bigRing { display: flex; justify-content: center; margin: 2px 0; }
+  .ringOI { display: flex; justify-content: space-between; font-size: 11px; color: var(--sub); margin: 0 4px 12px; }
+  .btn.remind { border: 2px solid var(--red); color: var(--red-ink); background: var(--card); }
+  .remLast { text-align: center; font-size: 11px; color: var(--sub); margin: 5px 0 4px; }
+  .remText { width: 100%; min-height: 280px; font: inherit; font-size: 15px; line-height: 1.6; padding: 12px; border-radius: 12px; border: 1px solid var(--line2); background: var(--card); color: var(--ink); }
+  .remHint { font-size: 11px; color: var(--sub); margin: 4px 2px 12px; }
   .item .nm { flex: 1; min-width: 0; font-size: 16px; font-weight: 600; }
   .item .nm small { display: block; font-size: 12px; font-weight: 400; color: var(--sub); margin-top: 2px; }
   .item .nm small .early { color: var(--red); font-weight: 600; }
@@ -376,6 +390,59 @@
     const m = (new Date(t.due) - new Date()) / 60000;
     return '<div class="st ' + (m <= 120 ? 'hot' : 'warn') + '"><b>' + lbl + '</b><span>' + remain(t.due) + '</span></div>';
   }
+  // ---------------------------------------------------------------- チェックインまでの残り時間の円
+  const tAt = (ymd, hmv) => new Date(ymd + 'T' + (hmv || '00:00') + ':00+09:00').getTime();
+  // 前のゲストのOUTから次のINまでのうち、どこまで進んだか（frac）と残り（ms）
+  function timeLeft(t, room) {
+    if (!t || !t.due) return null;
+    const due = new Date(t.due).getTime(), p = prevOf(room, t.due.slice(0, 10)), now = Date.now();
+    const start = p ? tAt(p.out, p.tout) : due - 86400000;
+    return { left: due - now, frac: Math.max(0, Math.min(1, (now - start) / Math.max(1, due - start))), start: start, p: p };
+  }
+  const fmtLeft = (ms) => { if (ms <= 0) return '超過'; const m = Math.floor(ms / 60000), h = Math.floor(m / 60); return h >= 48 ? Math.floor(h / 24) + '日' : h + ':' + String(m % 60).padStart(2, '0'); };
+  function ringSvg(size, sw, frac, color, inner) {
+    const r = size / 2 - sw / 2 - 1, C = 2 * Math.PI * r, c = size / 2;
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '"><circle cx="' + c + '" cy="' + c + '" r="' + r + '" fill="none" style="stroke:var(--line)" stroke-width="' + sw + '"/>'
+      + (frac > 0 ? '<circle cx="' + c + '" cy="' + c + '" r="' + r + '" fill="none" style="stroke:' + color + '" stroke-width="' + sw + '" stroke-linecap="round" stroke-dasharray="' + (C * frac).toFixed(1) + ' ' + C.toFixed(1) + '" transform="rotate(-90 ' + c + ' ' + c + ')"/>' : '')
+      + inner + '</svg>';
+  }
+  const CHECK_IN_RING = (size) => '<path d="M' + (size * .34) + ' ' + (size * .51) + 'l' + (size * .11) + ' ' + (size * .11) + ' ' + (size * .2) + ' -' + (size * .22) + '" fill="none" style="stroke:var(--matcha)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>';
+  // 一覧の右：残り時間の円（完了は緑の輪にチェック）。要確認・清掃不要は今まで通りの札
+  function ringBox(t, room) {
+    if (!t) return '<div class="rw">' + ringSvg(56, 4, 1, 'var(--matcha)', CHECK_IN_RING(56)) + '<span class="rs g">空室から</span></div>';
+    if (t.check || t.status === 'キャンセル') return stBox(t);
+    if (t.status === '完了') return '<div class="rw">' + ringSvg(56, 4, 1, 'var(--matcha)', CHECK_IN_RING(56)) + '<span class="rs g">完了</span></div>';
+    const tl = timeLeft(t, room);
+    if (!tl) return stBox(t);
+    const hot = tl.left <= 2 * 3600000, col = hot ? 'var(--red)' : 'var(--amber)', ink = hot ? 'var(--red-ink)' : 'var(--amber)';
+    const lbl = t.status === '途中' ? '途中' : t.day > D.today ? '予定' : '未完了';
+    return '<div class="rw">' + ringSvg(56, 4, tl.frac, col, '<text x="28" y="23" text-anchor="middle" style="font-size:9px;fill:' + ink + '">残り</text>'
+      + '<text x="28" y="37" text-anchor="middle" style="font-size:13px;font-weight:700;fill:' + ink + '">' + fmtLeft(tl.left) + '</text>') + '<span class="rs ' + (hot ? 'r' : 'a') + '">' + lbl + '</span></div>';
+  }
+
+  // ---------------------------------------------------------------- 清掃会社に催促（LINE。ishiiさん 2026-09-28）
+  const dayTxt = (d) => (d === D.today ? '本日 ' : d === addDays(D.today, 1) ? '明日 ' : '') + md(d) + '（' + WD[new Date(d + 'T00:00:00Z').getUTCDay()] + '）';
+  let remindIds = [];
+  function remindSheet(list) {
+    remindIds = list.map(x => x.id);
+    const day = (list[0].due || '').slice(0, 10) || D.today;
+    const text = '🧹 清掃進捗の確認です！\n\n' + dayTxt(day) + 'チェックインのお部屋で、まだ清掃完了の報告がないところがあります🙏\n\n'
+      + list.map(x => '🏠 ' + x.room + '（' + (x.due ? hm(x.due) + ' IN' : '次の予約なし') + (/アーリー/.test(x.deadline || '') ? '・アーリー' : '') + '）').join('\n')
+      + '\n\n終わったらアプリから報告をお願いします✨\nいつもありがとうございます！😊';
+    openSheet('清掃会社に催促', '送り先：' + (D.lineTo || '未設定'), '<textarea id="rText" class="remText">' + esc(text) + '</textarea><div class="remHint">文は自由に書き換えられます</div>'
+      + '<div class="btns"><button class="btn pri full" data-act="remindSend">LINE に送る</button></div>');
+    const old = document.querySelector('.shead .st'); if (old) old.remove();
+  }
+  // 今日INで、清掃がまだの部屋（清掃の行があるもの）
+  const pendingToday = () => D.rooms.map(r => inOn(r, D.today) && taskDue(r, D.today)).filter(t => t && t.status !== '完了' && t.status !== 'キャンセル');
+  async function remindSend() {
+    const text = document.getElementById('rText').value.trim();
+    if (!text) { toast('文が空です', true); return; }
+    if (!(await ask((D.lineTo || '送り先') + ' に送りますか？', 'LINE に送る'))) return;
+    try { await api('admin_remind', { ids: remindIds, text: text }); toast('催促を送りました'); closeSheet(); load(true); }
+    catch (e) { if (!e.silent) toast('送れませんでした：' + (e.message || ''), true); }
+  }
+
   const worst = (list) => ['hot', 'warn', 'plan', 'ok', 'none'].find(c => list.includes(c)) || 'none';
 
   // ---------------------------------------------------------------- 画面
@@ -393,7 +460,8 @@
     const ready = insT.filter(b => ['ok', 'none'].includes(st(taskDue(b.room, today)).cls)).length;
     const overdue = T().filter(t => t.status !== '完了' && t.status !== 'キャンセル' && t.due && t.due.slice(0, 10) < today).length;
     const sm = D.summary || { in: insT.length, done: ready, late: overdue };   // 受け口の数（清掃画面と同じ）
-    document.getElementById('sum').innerHTML = gauge(sm);
+    const pend = pendingToday();
+    document.getElementById('sum').innerHTML = gauge(sm) + (pend.length ? '<button class="remBtn" data-act="remindAll">🔔 未完了' + pend.length + '部屋をまとめて催促</button>' : '');
     updLabel();
 
     document.getElementById('view').innerHTML = tab === 'day' ? dayView(ds) : gridView(ds);
@@ -421,9 +489,9 @@
     const ins = rooms.map(r => inOn(r, selDay)).filter(Boolean).sort((a, b) => inTime(a) < inTime(b) ? -1 : 1);
     h += '<div class="capIn"><i></i>' + dayLabel(selDay) + 'のチェックイン<span style="font-weight:600;color:var(--sub);font-size:13px">' + ins.length + '件</span></div><div class="card">' + (ins.length ? ins.map(b => {
       const t = taskIn(b.room, selDay), s = st(t), due = t && t.due ? hm(t.due) : b.tin, early = t && /アーリー/.test(t.deadline || '');
-      return '<button class="item" data-act="open" data-room="' + esc(b.room) + '" data-day="' + selDay + '" data-kind="in"><span class="tm' + (s.cls === 'hot' ? ' hot' : '') + '">' + due + '</span>'
+      return '<button class="item" data-act="open" data-room="' + esc(b.room) + '" data-day="' + selDay + '" data-kind="in"><span class="tm2"><small>IN</small>' + due + '</span>'
         + '<span class="nm">' + esc(b.room) + '<small>' + esc(b.ch || '') + (b.n ? '・' + b.n + '名' : '') + (early ? '・<span class="early">アーリー</span>' : '') + '</small></span>'
-        + stBox(t) + '</button>';
+        + ringBox(t, b.room) + '</button>';
     }).join('') : '<div class="empty">チェックインはありません</div>') + '</div>';
 
     const outs = rooms.map(r => outOn(r, selDay)).filter(Boolean).sort((a, b) => a.tout < b.tout ? -1 : 1);
@@ -486,6 +554,8 @@
     });
   })();
   setInterval(updLabel, 30000);
+  // 残り時間の円を1分ごとに進める（部屋の詳細を開いている間は動かさない）
+  setInterval(() => { if (D && !document.getElementById('sheet').classList.contains('on')) render(); }, 60000);
 
   // ---------------------------------------------------------------- 部屋の詳細
   function openSheet(title, sub, body) {
@@ -516,12 +586,22 @@
     const nxt = kind === 'in' ? inOn(room, day) : nextOf(room, t && t.day ? t.day : day);
     const prv = kind === 'out' ? outOn(room, day) : prevOf(room, nxt ? nxt.in : day);
     cur = { room, day, kind, taskId: t ? t.id : '' };
-    let h = (t && t.note ? '<div class="note" style="margin-bottom:12px">' + esc(t.note) + '</div>' : '')
+    const tl = t && t.due && t.status !== '完了' && t.status !== 'キャンセル' ? timeLeft(t, room) : null;
+    let h = '';
+    if (tl) {
+      const hot = tl.left <= 2 * 3600000, col = hot ? 'var(--red)' : 'var(--amber)', ink = hot ? 'var(--red-ink)' : 'var(--amber)';
+      h += '<div class="bigRing">' + ringSvg(124, 9, tl.frac, col, '<text x="62" y="52" text-anchor="middle" style="font-size:11px;fill:var(--sub)">IN ' + hm(t.due) + ' まで</text>'
+          + '<text x="62" y="80" text-anchor="middle" style="font-size:26px;font-weight:700;fill:' + ink + '">' + fmtLeft(tl.left) + '</text>') + '</div>'
+        + '<div class="ringOI"><span>' + (tl.p ? md(tl.p.out) + ' ' + tl.p.tout + ' OUT' : '') + '</span><span>' + md(t.due.slice(0, 10)) + ' ' + hm(t.due) + ' IN</span></div>';
+    }
+    h += (t && t.note ? '<div class="note" style="margin-bottom:12px">' + esc(t.note) + '</div>' : '')
       + '<div class="guests">' + guestCard(prv, 'out', t) + '<div class="arrow">→</div>' + guestCard(nxt, 'in', t) + '</div>';
     if (t) {
       h += '<div class="btns">' + (t.status === '完了' ? '<button class="btn dan full" data-act="op" data-v="undo">完了を取り消す</button>'
           : t.status === 'キャンセル' ? '<button class="btn full" data-act="op" data-v="restore">清掃不要を元に戻す</button>'
           : '<button class="btn pri" data-act="op" data-v="complete">完了にする</button><button class="btn dan" data-act="op" data-v="cancel">清掃不要にする</button>') + '</div>';
+      if (t.status !== '完了' && t.status !== 'キャンセル') h += '<div class="btns"><button class="btn remind full" data-act="remindOne">🔔 この部屋を催促</button></div>'
+        + '<div class="remLast">前回の催促：' + (t.reminded ? mdw(t.reminded.slice(0, 10)) + ' ' + hm(t.reminded) : 'なし') + '</div>';
       if (t.partial) h += '<div class="sec">途中の報告</div><div class="box"><div class="kv"><span class="v">' + esc(t.partial).split('／').join('<br>') + '</span></div></div>';
       h += '<div class="sec">写真' + (t.doneAt ? '<span style="font-weight:400">（' + mdw(t.doneAt.slice(0, 10)) + ' ' + hm(t.doneAt) + ' 完了）</span>' : '') + '</div>'
         + '<div class="photos" id="dPhotos">' + (t.photos || t.status === '完了' || t.status === '途中' ? '<div class="empty" style="grid-column:1/-1">読み込み中…</div>' : '<div class="empty" style="grid-column:1/-1">完了すると清掃会社の写真がここに並びます</div>') + '</div>';
@@ -669,6 +749,9 @@
     else if (a === 'histPhotos') histPhotos(v);
     else if (a === 'op') doSet(v);
     else if (a === 'markClean') markClean(b.dataset.room);
+    else if (a === 'remindAll') { const l = pendingToday(); if (l.length) remindSheet(l); }
+    else if (a === 'remindOne') { const t = cur && T().find(x => x.id === cur.taskId); if (t) remindSheet([t]); }
+    else if (a === 'remindSend') remindSend();
     else if (a === 'memo') doSet('memo', document.getElementById('dMemo').value.trim());
     else if (a === 'due') { const x = document.getElementById('dDue').value; if (!x) { toast('期限を選んでください', true); return; } doSet('due', x); }
     else if (a === 'dueEdit') { const x = document.getElementById('dueBox'); x.style.display = x.style.display === 'none' ? 'block' : 'none'; }
