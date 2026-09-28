@@ -715,8 +715,8 @@
   // ---------------------------------------------------------------- 報告しました（通知するかは選ばせない。LINEへは見張りが5分おきに送る。ishiiさん 2026-09-28）
   function doneSheet(room, n, at) {
     document.getElementById('doneOk').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 12.5 4 4 8-8.5"/></svg>';
-    document.getElementById('doneQ').textContent = room + ' の清掃を\n報告しました';
-    document.getElementById('doneSub').textContent = '写真 ' + n + '枚・' + md(at.slice(0, 10)) + ' ' + hm(at) + '\n運営に LINE で知らせます\n（LINE への反映は最大5分かかります）';
+    document.getElementById('doneQ').textContent = room + ' の清掃を\nLINE に報告しました';
+    document.getElementById('doneSub').textContent = '写真 ' + n + '枚・' + md(at.slice(0, 10)) + ' ' + hm(at) + '\n（LINE への反映は最大5分かかります）';
     document.getElementById('doneSheet').classList.add('on');
   }
   function closeDone() { document.getElementById('doneSheet').classList.remove('on'); }
