@@ -592,7 +592,7 @@
     if (idle.ready.length) {
       h += '<div class="sec"><b>清掃済み</b><span>次のIN順</span></div><div class="card">' + idle.ready.map(x =>
         '<button class="row" data-act="roomFree" data-id="' + esc(x.r) + '"><div class="nm">' + roomName(x.r) + (x.nextIn === today ? '<span class="tag inT">今日IN</span>' : '')
-        + (x.check ? '<small class="chk">' + md(x.lastOut) + ' OUT後の清掃記録なし</small>' : '<small>' + (x.last ? md(x.last.slice(0, 10)) + ' ' + hm(x.last) + ' 完了' : '空室・記録なし') + '</small>')
+        + (x.check ? '<small class="chk">' + (x.lastOut ? md(x.lastOut) + ' OUT後の清掃記録なし' : '清掃の記録なし') + '</small>' : '<small>' + (x.last ? md(x.last.slice(0, 10)) + ' ' + hm(x.last) + ' 完了' : '空室・記録なし') + '</small>')
         + '<small>' + (x.nextIn === today ? '今日' + (x.nextTin ? ' ' + x.nextTin + ' ' : '') + 'IN' : x.nextIn ? '次のIN ' + md(x.nextIn) : '次の予約なし') + '</small></div>'
         + (x.check ? '<span class="chkchip">要確認</span>' : x.last ? '<span class="okchip">完了</span>' : '') + '</button>').join('') + '</div>'
         + '<div class="secNote">押すと前回の写真・入室方法・清掃の報告</div>';
