@@ -738,10 +738,19 @@
   }
 
   // ---------------------------------------------------------------- 取り消し
+  // 前の日の完了（一覧に無い記録）も取り消す。必ず確認を出す
+  let undoInfo = null;
+  async function undoAny(u) {
+    if (tasks.some(t => t.id === u.id && t.done)) { undo(u.id); return; }   // 今日の完了はいつもの取り消し
+    const when = u.at ? md(u.at.slice(0, 10)) + ' ' + hm(u.at) + ' の' : '';
+    if (!(await ask(u.room + ' の' + when + '完了を\n本当に取り消しますか？\n（送った写真も外れます）', '取り消す'))) return;
+    try { setData(await api('undo', { id: u.id })); render(); toast('取り消しました'); }
+    catch (e) { if (!e.silent) toast('取り消せませんでした。もう一度押してください', true); }
+  }
   async function undo(id, confirmed) {
     const t = tasks.find(x => x.id === id);
     if (t && id.indexOf('tmp-') === 0) { toast('送信の仕上げ中です。数秒後にもう一度押してください', true); return; }
-    if (!t || (!confirmed && !(await ask(t.room + ' の完了を\n取り消しますか？', '取り消す')))) return;
+    if (!t || (!confirmed && !(await ask(t.room + ' の完了を\n本当に取り消しますか？\n（送った写真も外れます）', '取り消す')))) return;
     // 返事を待たずに画面を戻す。失敗したら元に戻す
     const before = { done: t.done, doneAt: t.doneAt };
     if (t.deadline === '一覧外の清掃') tasks = tasks.filter(x => x !== t); else Object.assign(t, { done: false, doneAt: '' });
@@ -822,8 +831,9 @@
     document.getElementById('rWhen').className = 'rWhen';
     document.getElementById('rWhen').textContent = o.state === 'stay' ? '滞在中（' + md(o.out) + ' OUT）'
       : lastDone ? md(lastDone.slice(0, 10)) + ' ' + hm(lastDone) + ' 完了' : '清掃の記録なし';
-    // 今日の完了だけ、ここから取り消せる（間違えて報告したとき）
-    const undoable = lastId && tasks.some(t => t.id === lastId && t.done);
+    // 最後の完了はここから取り消せる。前の日の完了も（部屋を間違えて報告し、後日気づいたとき。ishiiさん 2026-09-28）
+    const undoable = !!lastId;
+    undoInfo = lastId ? { id: lastId, room: room, at: lastDone } : null;
     const btn = document.getElementById('rPick'), add = document.getElementById('rAdd');
     btn.innerHTML = ICON_CAM + '<span>新規の清掃を<br>報告</span>'; btn.classList.add('sub', 'two');
     add.innerHTML = ICON_ADD + '<span>前回の清掃に<br>写真を追加</span>'; add.classList.add('two'); add.hidden = !lastId;
@@ -940,7 +950,7 @@
     const b = e.target.closest('[data-act]');
     if (!b) return;
     ({ roomFree: openRoomFree, lastPhotos: lastPhotos, toAdmin: toAdmin, room: openRoom, closeRoom: closeRoom, pick: pick, zoom: (i) => zoom(+i), closeLb: closeLb,
-       undoLast: (id) => { closeRoom(); undo(id); }, closePart: closePart, closeDone: closeDone,
+       undoLast: () => { const u = undoInfo; closeRoom(); if (u) undoAny(u); }, closePart: closePart, closeDone: closeDone,
        partPick: () => { const p = document.getElementById('partPick'); p.value = ''; p.click(); }, stayToggle: () => { showStay = !showStay; render(); } })[b.dataset.act](b.dataset.id);
   });
   window.addEventListener('online', pump);
