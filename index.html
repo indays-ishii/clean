@@ -265,6 +265,10 @@
   .sheet .q { white-space: pre-line; font-size: 18px; font-weight: 600; line-height: 1.5; margin-bottom: 18px; }
   .sheet button { display: block; width: 100%; height: 54px; border: 0; border-radius: 16px; font-size: 17px; font-weight: 700; }
   .sheet .yes { background: var(--red); color: #fff; }
+  .doneOk { width: 56px; height: 56px; margin: 0 auto 12px; border-radius: 50%; border: 2.5px solid var(--matcha); color: var(--matcha); display: flex; align-items: center; justify-content: center; }
+  .doneOk svg { width: 30px; height: 30px; }
+  .doneSub { white-space: pre-line; font-size: 13px; color: var(--sub); line-height: 1.6; margin: -8px 0 14px; }
+  #doneSheet .no { border: 2px solid var(--matcha); color: var(--matcha-ink); font-weight: 700; margin-top: 0; }
   .sheet .no { background: transparent; color: var(--sub); margin-top: 4px; font-weight: 400; }
 </style>
 </head>
@@ -290,6 +294,14 @@
     <div class="err" id="passErr"></div>
     <button class="go" type="submit">はじめる</button>
   </form>
+</div>
+<div class="sheet" id="doneSheet">
+  <div class="panel">
+    <div class="doneOk" id="doneOk"></div>
+    <div class="q" id="doneQ"></div>
+    <div class="doneSub" id="doneSub"></div>
+    <button class="no" data-act="closeDone">閉じる</button>
+  </div>
 </div>
 <div class="sheet" id="sheet">
   <div class="panel">
@@ -670,7 +682,6 @@
           const tmp = { id: 'tmp-' + job.id, room: job.room, done: true, doneAt: nowIsoJst(), photos: n };
           if (t) Object.assign(t, { done: true, doneAt: tmp.doneAt, photos: n }); else tasks.push(tmp);
           render();
-          toast(job.room + ' 完了');
           try {
             setData(await api('complete', room ? { room: room, uploads: job.uploads.filter(Boolean) }
                                                 : { id: job.id, uploads: job.uploads.filter(Boolean) }));
@@ -680,6 +691,7 @@
           }
           await delJob(job.id);
           render();
+          doneSheet(job.room, n, tmp.doneAt);   // 受け口が受け取ってから「報告しました」を出す
         } catch (e) {
           if (e && e.silent) break;
           job.state = 'waiting'; await putJob(job); render();
@@ -687,6 +699,16 @@
       }
     } finally { running = false; }
   }
+
+  // ---------------------------------------------------------------- 報告しました（通知するかは選ばせない。LINEへは見張りが5分おきに送る。ishiiさん 2026-09-28）
+  function doneSheet(room, n, at) {
+    document.getElementById('doneOk').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 12.5 4 4 8-8.5"/></svg>';
+    document.getElementById('doneQ').textContent = room + ' の清掃を\n報告しました';
+    document.getElementById('doneSub').textContent = '写真 ' + n + '枚・' + md(at.slice(0, 10)) + ' ' + hm(at) + '\n運営に LINE で知らせます';
+    document.getElementById('doneSheet').classList.add('on');
+  }
+  function closeDone() { document.getElementById('doneSheet').classList.remove('on'); }
+  document.getElementById('doneSheet').addEventListener('click', (e) => { if (e.target.id === 'doneSheet') closeDone(); });
 
   // ---------------------------------------------------------------- 確認
   function ask(q, yes) {
@@ -906,7 +928,7 @@
     const b = e.target.closest('[data-act]');
     if (!b) return;
     ({ roomFree: openRoomFree, lastPhotos: lastPhotos, toAdmin: toAdmin, room: openRoom, closeRoom: closeRoom, pick: pick, zoom: (i) => zoom(+i), closeLb: closeLb,
-       undoLast: (id) => { closeRoom(); undo(id); }, closePart: closePart,
+       undoLast: (id) => { closeRoom(); undo(id); }, closePart: closePart, closeDone: closeDone,
        partPick: () => { const p = document.getElementById('partPick'); p.value = ''; p.click(); }, stayToggle: () => { showStay = !showStay; render(); } })[b.dataset.act](b.dataset.id);
   });
   window.addEventListener('online', pump);
