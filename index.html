@@ -173,6 +173,10 @@
   .gcard .ppl .ns { margin: 0 0 0 auto; }
   .gcard .ppl .nn { margin-left: auto; display: flex; align-items: baseline; gap: 4px; }
   .gcard .ppl svg { align-self: center; flex: none; }
+  /* 前のゲストの人数・泊数は小さく（次のゲストほど大事ではない。ishiiさん 2026-09-28） */
+  .gcard .pps { display: flex; align-items: center; gap: 3px; font-size: 13px; color: var(--sub); margin-top: 8px; white-space: nowrap; }
+  .gcard .pps svg { width: 14px; height: 14px; flex: none; }
+  .gcard .pps svg + svg, .gcard .pps svg:nth-of-type(2) { margin-left: 8px; }
   .garrow { display: flex; align-items: center; color: var(--muted); }
   .gnote { font-size: 11px; color: var(--sub); margin: 8px 2px 16px; }
   .pgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: -6px 0 16px; }
@@ -759,7 +763,8 @@
         + '<span class="nn">' + ICON_MOON + '<b>' + next.nights + '</b><span>泊</span></span></div></div>'
       : '<div class="gcard nx"><div class="glb">次のゲスト IN</div><div class="tt">予約なし</div></div>';
     const pv = prev ? '<div class="gcard"><div class="glb">前のゲスト OUT</div><div class="tt">' + md(prev.out) + ' ' + esc(prev.tout || '') + '</div>'
-        + (late ? '<span class="tag late">レイト</span>' : '') + '<div class="ns">' + prev.nights + '泊</div></div><div class="garrow">→</div>' : '';
+        + (late ? '<span class="tag late">レイト</span>' : '')
+        + '<div class="pps">' + ICON_PPL + (prev.n ? prev.n + '名' : '人数不明') + ICON_MOON + prev.nights + '泊</div></div><div class="garrow">→</div>' : '';
     return '<div class="gcards">' + pv + nx + '</div>' + (next ? '<div class="gnote">タオル・アメニティは次のゲストの人数分を用意</div>' : '<div style="height:14px"></div>');
   }
 
