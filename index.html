@@ -202,9 +202,16 @@
   .sec b { font-size: 16px; } .sec span { font-size: 12px; color: var(--sub); }
   .sec.dim b { color: var(--sub); }
   .card.now { border: 1.5px solid var(--matcha); }
-  .dh { font-size: 12px; font-weight: 700; color: var(--sub); padding: 7px 14px; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .dh { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: var(--sub); padding: 8px 14px; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .dh .dd { font-size: 15px; color: var(--ink); }
+  .dh .dr { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--sub); }
+  .dh .dtag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--amber-bg); color: var(--amber); }
+  .dh .dtag.hot { background: var(--red-bg); color: var(--red); }
+  .grp .tm { width: 54px; }
+  .grp .tm small { white-space: nowrap; }
+  .tm .i { display: block; font-size: 10px; font-weight: 700; color: var(--sub); line-height: 1.1; }
   .grp + .grp .dh { border-top: 1px solid var(--line); }
-  .grp.hot .dh, .grp.hot .tm { color: var(--red); }
+  .grp.hot .dh .dd, .grp.hot .tm { color: var(--red); }
   .fac { display: block; font-size: 11px; font-weight: 500; color: var(--sub); }
   .tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px; margin-left: 6px; vertical-align: 2px; }
   .tag.early { background: var(--amber-bg); color: var(--amber); }
@@ -498,11 +505,12 @@
   function row(t, j, isLater) {
     const early = /アーリー/.test(t.deadline);
     let sub = '';
-    if (t.day) sub = isLater ? ((['今日', '明日'].includes(rel(t.day)) ? rel(t.day) + ' ' : '') + md(t.day) + (t.out ? ' ' + t.out : '') + ' OUT後')
-                             : '空室・' + (t.day === today ? '今日' : md(t.day)) + (t.out ? ' ' + t.out : '') + ' OUT';
+    // OUTは前のゲストのもの。今日・明日にも日付を添える（ishiiさん 2026-09-28）
+    const outDay = (['今日', '明日', '昨日'].includes(rel(t.day)) ? rel(t.day) + ' ' : '') + md(t.day) + (t.out ? ' ' + t.out : '');
+    if (t.day) sub = isLater ? '今のゲスト ' + outDay + ' OUT後' : '前のゲスト ' + outDay + ' OUT';   // 「清掃待ち」は空室なので「空室」は書かない
     sub = j ? jobNote(j) : sub ? '<small>' + sub + '</small>' : '';
     const note = t.note && !j ? '<span class="note">' + esc(t.note) + '</span>' : '';
-    const inner = '<div class="tm">' + (t.due ? hm(t.due) + '<small>まで</small>' : '—') + '</div><div class="nm">' + roomName(t.room)
+    const inner = '<div class="tm">' + (t.due ? '<small class="i">IN</small>' + hm(t.due) + '<small>までに清掃</small>' : '—') + '</div><div class="nm">' + roomName(t.room)
       + (early ? '<span class="tag early">アーリーIN</span>' : '') + (t.partial ? '<span class="tag part">途中</span>' : '') + sub
       + (t.partial && !j ? '<small class="part">' + esc(t.partial.split('／').pop()) + '</small>' : '') + note + '</div>'
       + (j ? miniRing(j) : isLater ? '<span class="stay">滞在中</span>' : '<div class="cam">' + ICON_CAM + '</div>');
@@ -522,9 +530,9 @@
     });
     let h = '';
     groups.forEach((ts, k) => {
-      // 何の日付かを添える：その日のチェックインまでに清掃（ishiiさん 2026-09-27）
-      const label = k === 'over' ? '期限切れ（急いでください）' : k === 'none' ? '次の予約なし（期限なし）'
-        : (k === today ? '本日 ' : rel(k) === '明日' ? '明日 ' : '') + dwk(k) + 'のチェックインまでに';
+      // 日付を大きく、本日・明日はタグ、右に小さく「チェックイン」（ishiiさん 2026-09-28）
+      const label = k === 'over' ? '<span class="dd">期限切れ（急いでください）</span>' : k === 'none' ? '<span class="dd">次の予約なし（期限なし）</span>'
+        : (k === today ? '<span class="dtag hot">本日</span>' : rel(k) === '明日' ? '<span class="dtag">明日</span>' : '') + '<span class="dd">' + dwk(k) + '</span><span class="dr">チェックイン</span>';
       h += '<div class="grp' + (k === 'over' || k === today ? ' hot' : '') + '"><div class="dh">' + label + '</div>' + ts.map(t => row(t, live(t.id), isLater)).join('') + '</div>';
     });
     return h;
