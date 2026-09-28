@@ -126,7 +126,9 @@
   .chkl { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 2px 14px; margin-bottom: 14px; }
   .chkl label { display: flex; align-items: center; gap: 12px; padding: 13px 0; font-size: 16px; }
   .chkl label + label { border-top: 1px solid var(--line); }
-  .chkl input { width: 22px; height: 22px; accent-color: var(--matcha); }
+  .chkl input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--matcha); }
+  .chkl .pother { display: block; width: 100%; font: inherit; font-size: 15px; padding: 10px 12px; margin: 0 0 12px; border-radius: 10px; border: 1px solid var(--line2); background: var(--bg); color: var(--ink); }
+  .chkl .pother[hidden] { display: none; }
   .pmemo { width: 100%; min-height: 70px; font: inherit; font-size: 15px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line2); background: var(--card); color: var(--ink); margin-bottom: 14px; }
   .ppick { display: block; width: 100%; border: 1px dashed var(--line2); background: var(--card); border-radius: 12px; padding: 12px; color: var(--matcha-ink); font-size: 14px; font-weight: 600; }
   .vhead .t .rToday { display: block; font-size: 13px; font-weight: 600; color: var(--sub); margin-bottom: 3px; }   /* 部屋の画面にも本日の日付を小さく */
@@ -809,14 +811,24 @@
   }
 
   // ---------------------------------------------------------------- 途中まで清掃報告（ゴミ出しだけ等。完了にはしない）
-  const PART_ITEMS = ['ゴミ出し', 'リネン回収', '換気', '水回り', 'その他'];
+  // 作業の流れの順に分けて並べる（ishiiさん 2026-09-28）。名前に「・」は使わない（報告の中で項目をつなぐ記号なので）
+  const PART_GROUPS = [
+    ['片付け', ['ゴミ出し', '忘れ物チェック']],
+    ['リネン', ['リネン回収', '洗濯乾燥', 'ベッドメイク']],
+    ['掃除', ['水回り', '床掃除', '換気']],
+    ['補充', ['アメニティ補充']],
+    ['その他', ['その他']],
+  ];
+  const PART_ITEMS = PART_GROUPS.reduce((a, g) => a.concat(g[1]), []);
   let partOpen = null, partFiles = [];
   function openPartial(id) {
     const t = tasks.find(x => x.id === id);
     if (!t) return;
     partOpen = id; partFiles = [];
     document.getElementById('pRoom').textContent = t.room;
-    document.getElementById('pBody').innerHTML = '<div class="chkl">' + PART_ITEMS.map(x => '<label><input type="checkbox" value="' + x + '">' + x + '</label>').join('') + '</div>'
+    document.getElementById('pBody').innerHTML = PART_GROUPS.map(g => '<div class="rsec">' + g[0] + '</div><div class="chkl">'
+        + g[1].map(x => '<label><input type="checkbox" value="' + x + '"' + (x === 'その他' ? ' id="pOther"' : '') + '>' + x + '</label>').join('')
+        + (g[0] === 'その他' ? '<input class="pother" id="pOtherText" placeholder="何をしたか（例：窓拭き）" hidden>' : '') + '</div>').join('')
       + '<div class="rsec">メモ（任意）</div><textarea class="pmemo" id="pMemo" placeholder="例：続きは明日の午前にやります"></textarea>'
       + '<div class="rsec">写真（任意）</div><button class="ppick" data-act="partPick" id="pPickBtn">＋ 写真を選ぶ</button>';
     document.getElementById('partSheet').classList.add('on');
@@ -827,9 +839,10 @@
     const segs = partial.split('／'), done = new Set();
     // 1件は「9/28 10:12 ゴミ出し・リネン回収 済み（メモ）」
     segs.forEach(x => { const m = /^\S+ \S+ (.+?) 済み/.exec(x); if (m) m[1].split('・').forEach(i => done.add(i)); });
-    const items = PART_ITEMS.filter(i => i !== 'その他' || done.has(i));
+    const others = Array.from(done).filter(i => /^その他/.test(i));   // 「その他：窓拭き」
+    const items = PART_ITEMS.filter(i => i !== 'その他').concat(others);
     return '<div class="rsec">途中まで清掃済み</div><div class="prog"><div class="pchips">'
-      + items.map(i => '<span class="pchip' + (done.has(i) ? ' on' : '') + '">' + (done.has(i) ? '✓ ' : '') + i + '</span>').join('') + '</div>'
+      + items.map(i => '<span class="pchip' + (done.has(i) ? ' on' : '') + '">' + (done.has(i) ? '✓ ' : '') + esc(i) + '</span>').join('') + '</div>'
       + segs.map(x => '<div class="phist">' + esc(x) + '</div>').join('') + '<div class="pgrid part" id="rPartPhotos"></div></div>';
   }
   // 途中の報告で送った写真（ページ本文の写真）を最初から一覧で出す。1枚押すと大きく
@@ -844,6 +857,13 @@
     } catch (e) { /* 写真が読めなくても報告の中身は出ている */ }
   }
   function closePart() { partOpen = null; partFiles = []; document.getElementById('partSheet').classList.remove('on'); }
+  // その他に印をつけたら、何をしたか書ける欄を出す
+  document.getElementById('pBody').addEventListener('change', (ev) => {
+    if (ev.target.id !== 'pOther') return;
+    const t = document.getElementById('pOtherText');
+    t.hidden = !ev.target.checked;
+    if (ev.target.checked) t.focus();
+  });
   document.getElementById('partPick').addEventListener('change', (ev) => {
     partFiles = Array.from(ev.target.files || []);
     const b = document.getElementById('pPickBtn');
@@ -852,7 +872,9 @@
   document.getElementById('pSend').addEventListener('click', async () => {
     const id = partOpen, t = tasks.find(x => x.id === id);
     if (!t) return;
-    const items = Array.from(document.querySelectorAll('#pBody input:checked')).map(x => x.value), memo = document.getElementById('pMemo').value.trim();
+    const other = (document.getElementById('pOtherText').value || '').trim().replace(/[・／]/g, '、');
+    const items = Array.from(document.querySelectorAll('#pBody input:checked')).map(x => x.value === 'その他' && other ? 'その他：' + other : x.value),
+      memo = document.getElementById('pMemo').value.trim();
     if (!items.length && !memo) { toast('やったことに印をつけてください', true); return; }
     const files = partFiles;
     closePart();
