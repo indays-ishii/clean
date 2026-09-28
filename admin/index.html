@@ -142,6 +142,7 @@
   .remBtn { flex-basis: 100%; border: 2px solid var(--red); color: var(--red-ink); background: var(--card); border-radius: 12px; padding: 10px; font-size: 14px; font-weight: 700; }
   .bigRing { display: flex; justify-content: center; margin: 2px 0; }
   .ringOI { display: flex; justify-content: space-between; font-size: 11px; color: var(--sub); margin: 0 4px 12px; }
+  .remindRow { margin-top: 26px; }   /* 完了にする・清掃不要とは間をあける（ishiiさん 2026-09-28） */
   .btn.remind { border: 2px solid var(--red); color: var(--red-ink); background: var(--card); }
   .remLast { text-align: center; font-size: 11px; color: var(--sub); margin: 5px 0 4px; }
   .remText { width: 100%; min-height: 280px; font: inherit; font-size: 15px; line-height: 1.6; padding: 12px; border-radius: 12px; border: 1px solid var(--line2); background: var(--card); color: var(--ink); }
@@ -600,7 +601,7 @@
       h += '<div class="btns">' + (t.status === '完了' ? '<button class="btn dan full" data-act="op" data-v="undo">完了を取り消す</button>'
           : t.status === 'キャンセル' ? '<button class="btn full" data-act="op" data-v="restore">清掃不要を元に戻す</button>'
           : '<button class="btn pri" data-act="op" data-v="complete">完了にする</button><button class="btn dan" data-act="op" data-v="cancel">清掃不要にする</button>') + '</div>';
-      if (t.status !== '完了' && t.status !== 'キャンセル') h += '<div class="btns"><button class="btn remind full" data-act="remindOne">🔔 この部屋を催促</button></div>'
+      if (t.status !== '完了' && t.status !== 'キャンセル') h += '<div class="btns remindRow"><button class="btn remind full" data-act="remindOne">🔔 この部屋を催促</button></div>'
         + '<div class="remLast">前回の催促：' + (t.reminded ? mdw(t.reminded.slice(0, 10)) + ' ' + hm(t.reminded) : 'なし') + '</div>';
       if (t.partial) h += '<div class="sec">途中の報告</div><div class="box"><div class="kv"><span class="v">' + esc(t.partial).split('／').join('<br>') + '</span></div></div>';
       h += '<div class="sec">写真' + (t.doneAt ? '<span style="font-weight:400">（' + mdw(t.doneAt.slice(0, 10)) + ' ' + hm(t.doneAt) + ' 完了）</span>' : '') + '</div>'
