@@ -162,6 +162,9 @@
   .regp .rh svg { width: 18px; height: 18px; }
   .regp .rr { font-size: 12px; margin-top: 4px; }
   .regp .rt { font-size: 11px; color: var(--sub); margin-top: 3px; }
+  .regp .regrf { margin-top: 8px; display: flex; justify-content: flex-end; font-size: 12px; }
+  .regp .regrf span { display: inline-flex; align-items: center; gap: 5px; }
+  .regp .regrf button { border: 1.5px solid currentColor; background: var(--card); color: inherit; border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 700; }
   .regp .regok { margin-top: 8px; background: var(--card); border: 2px solid var(--matcha); color: var(--matcha-ink); }
   .remBtn { flex-basis: 100%; border: 2px solid var(--red); color: var(--red-ink); background: var(--card); border-radius: 12px; padding: 10px; font-size: 14px; font-weight: 700; }
   .bigRing { display: flex; justify-content: center; margin: 2px 0; }
@@ -480,7 +483,8 @@
     return '<div class="regp ' + regCls(r) + '"><div class="rh">' + ICON_ID + head + '</div>'
       + (r.state === '不足' || r.state === '確認できず' ? (r.reason ? '<div class="rr">' + esc(r.reason) + '</div>' : '') : (src ? '<div class="rr">' + esc(src) + '</div>' : ''))
       + '<div class="rt">' + (r.at ? mdw(r.at.slice(0, 10)) + ' ' + hm(r.at) + ' 確認' : '') + (r.who ? '（' + esc(r.who) + '）' : '') + '</div>'
-      + (r.state === '確認できず' ? '<button class="btn full regok" data-act="regOk" data-v="' + r.id + '">✓ チャットで確認した（名簿OK）</button>' : '') + '</div>';
+      + (r.state === '確認できず' ? '<button class="btn full regok" data-act="regOk" data-v="' + r.id + '">✓ チャットで確認した（名簿OK）</button>' : '')
+      + (r.state === '完了' || r.state === '確認済み' ? '' : '<div class="regrf">' + (regWait ? '<span>' + SPIN + '名簿を更新中…（1〜2分）</span>' : '<button data-act="regRefresh">名簿を更新</button>') + '</div>') + '</div>';
   }
   // 名簿の最終確認と「名簿を更新」（押すと Mac mini が1分以内に Guest Note を読み直す。終わるまで15秒おきに読み直す）
   let regWait = null;
@@ -493,13 +497,18 @@
     try {
       const r = await api('admin_reg_refresh', {});
       regWait = { since: r.at, until: Date.now() + 6 * 60000 };
-      render(); toast('名簿の更新を頼みました（1〜2分）');
+      const redraw = () => {   // 部屋の詳細を開いていれば開き直す（名簿の欄を最新に）
+        const keep = document.getElementById('sheet').classList.contains('on') && cur && document.querySelector('#sBody .regp') ? cur : null;
+        render(); if (keep) openDetail(keep.room, keep.day, keep.kind, keep.taskId || undefined);
+      };
+      redraw(); toast('名簿の更新を頼みました（1〜2分）');
       const tick = async () => {
         if (!regWait) return;
         await load(true);
         const m = D.regMeta || {};
-        if (m.state === '完了' && m.at.slice(0, 16) >= regWait.since.slice(0, 16))   // Notion の時刻は分まで { regWait = null; render(); toast('名簿を更新しました'); return; }
-        if (Date.now() > regWait.until) { regWait = null; render(); toast('Mac mini から返事がありません。しばらくして開き直してください', true); return; }
+        // Notion の時刻は分まで
+        if (m.state === '完了' && m.at.slice(0, 16) >= regWait.since.slice(0, 16)) { regWait = null; redraw(); toast('名簿を更新しました'); return; }
+        if (Date.now() > regWait.until) { regWait = null; redraw(); toast('Mac mini から返事がありません。しばらくして開き直してください', true); return; }
         setTimeout(tick, 15000);
       };
       setTimeout(tick, 20000);
@@ -862,7 +871,7 @@
   // ---------------------------------------------------------------- 新しい版があれば読み直す
   // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
   // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
-  const BUILD = '2026-09-29-141309';
+  const BUILD = '2026-09-29-141904';
   async function checkUpdate() {
     if (document.querySelector('.sheet.on, #ask.on')) return;                                  // 作業中は読み直さない
     try {
