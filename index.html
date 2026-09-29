@@ -280,8 +280,8 @@
   .sheet .yes { background: var(--red); color: #fff; }
   /* 最終確認 */
   .panel.chk { text-align: left; }
-  .ck-t { font-size: 18px; font-weight: 700; }
-  .ck-s { font-size: 13px; color: var(--sub); margin: 4px 0 6px; line-height: 1.5; }
+  .ck-t { font-size: 18px; font-weight: 700; text-align: center; }
+  .ck-s { font-size: 13px; color: var(--sub); margin: 4px 0 6px; line-height: 1.5; text-align: center; }
   .ck-i { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border: 1.5px solid var(--line); border-radius: 14px; margin-top: 8px; }
   .ck-i:has(input:checked) { border-color: var(--matcha); background: var(--matcha-bg); }
   .ck-i input { appearance: none; -webkit-appearance: none; width: 24px; height: 24px; margin: 0; flex: none; border: 2px solid var(--line2); border-radius: 6px; background: var(--card); display: grid; place-content: center; }
@@ -1004,7 +1004,7 @@
   // ---------------------------------------------------------------- 新しい版があれば読み直す
   // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
   // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
-  const BUILD = '2026-09-29-183051';
+  const BUILD = '2026-09-29-183436';
   async function checkUpdate() {
     if (running || document.querySelector('.viewer.on, .sheet.on')) return;                                  // 作業中は読み直さない
     try {
