@@ -6,12 +6,12 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="清掃">
+<meta name="apple-mobile-web-app-title" content="清掃管理">
 <meta name="theme-color" content="#f6f6f2" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#121411" media="(prefers-color-scheme: dark)">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>清掃</title>
+<link rel="manifest" href="manifest.webmanifest?v=2">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=2">
+<title>清掃管理</title>
 <!--
   OCHAHOUSE 清掃会社用「清掃」（GitHub Pages: indays-ishii/clean）
   ishiiさん決定 2026-09-26：機能は完了報告だけ。デザインとシンプルさを磨く。
@@ -1004,7 +1004,7 @@
   // ---------------------------------------------------------------- 新しい版があれば読み直す
   // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
   // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
-  const BUILD = '2026-09-29-183436';
+  const BUILD = '2026-09-29-193929';
   async function checkUpdate() {
     if (running || document.querySelector('.viewer.on, .sheet.on')) return;                                  // 作業中は読み直さない
     try {

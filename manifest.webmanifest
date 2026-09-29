@@ -1,9 +1,9 @@
 {
-  "name": "清掃",
-  "short_name": "清掃",
+  "name": "清掃管理",
+  "short_name": "清掃管理",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#f6f6f2",
+  "background_color": "#ffffff",
   "theme_color": "#f6f6f2",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
