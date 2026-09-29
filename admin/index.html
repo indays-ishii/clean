@@ -162,6 +162,25 @@
   .regp .rh svg { width: 18px; height: 18px; }
   .regp .rr { font-size: 12px; margin-top: 4px; }
   .regp .rt { font-size: 11px; color: var(--sub); margin-top: 3px; }
+  /* 宿泊者名簿の欄（A案） */
+  .regp2 { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin: -4px 0 12px; }
+  .regp2 .rp-h { display: flex; justify-content: space-between; align-items: flex-start; }
+  .regp2 .rp-t { font-size: 14px; font-weight: 700; margin-top: 5px; }
+  .regp2 .rp-r { text-align: right; }
+  .regp2 .rp-b { display: inline-flex; align-items: center; gap: 5px; border: 1.5px solid var(--line2); background: var(--card); color: var(--ink); border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 700; }
+  .regp2 .rp-b.busy { color: var(--sub); }
+  .regp2 .rp-at { font-size: 10px; color: var(--sub); margin-top: 3px; }
+  .regp2 .rp-m { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+  .regp2 .rp-pp { display: flex; gap: 2px; color: var(--muted); }
+  .regp2 .rp-pp svg { width: 24px; height: 24px; }
+  .regp2 .rp-pp.ok { color: var(--matcha); }
+  .regp2 .rp-q { width: 30px; height: 30px; border-radius: 50%; background: var(--amber-bg); color: var(--amber); display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 800; }
+  .regp2 .rp-n b { display: block; font-size: 19px; }
+  .regp2 .rp-n small { display: block; font-size: 12px; margin-top: 1px; }
+  .regp2 .rp-n.ok { color: var(--matcha-ink); } .regp2 .rp-n.ng { color: var(--red-ink); } .regp2 .rp-n.q { color: var(--amber); }
+  .regp2 .rp-c { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+  .regp2 .rp-c span { font-size: 11px; padding: 3px 9px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); color: var(--sub); }
+  .regp2 .regok { margin-top: 10px; background: var(--card); border: 2px solid var(--matcha); color: var(--matcha-ink); }
   .regp .regrf { margin-top: 8px; display: flex; justify-content: flex-end; font-size: 12px; }
   .regp .regrf span { display: inline-flex; align-items: center; gap: 5px; }
   .regp .regrf button { border: 1.5px solid currentColor; background: var(--card); color: inherit; border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 700; }
@@ -457,6 +476,8 @@
   const COUNT_MAX_MIN = 5;   // AI がチャットの写真を数える目安（実測 1件1分半・4件で5分半。2026-09-29）
   const countSec = (r) => Math.max(0, Math.round((Date.now() - new Date(r.at).getTime()) / 1000));
   const SPIN = '<span class="spin"></span>';
+  const ICON_USER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>';
+  const ICON_USER_OK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="4"/><path d="M3 21a7 7 0 0 1 11-5.7M15 19l2 2 4-4"/></svg>';
   const regNum = (r) => r.state === '確認できず' ? '？' : r.state === '確認済み' ? '✓' : ((r.gn || 0) + (r.chat || 0)) + '/' + (r.want || '？');
   // 一覧：身分証のアイコン＋「1/3」
   function regBadge(room, day) {
@@ -477,14 +498,22 @@
           + '<div class="cbar"><i style="width:' + pct + '%"></i></div><div class="crow"><span>' + el + ' 経過</span><span>最大' + COUNT_MAX_MIN + '分ほど</span></div>'
           + '<div class="rt">Guest Note ' + (r.gn != null ? r.gn + '名' : '—') + '・チャット 数えています ／ ' + hm(r.at) + ' 新着を検知</div></div>';
     }
-    const head = r.state === '完了' ? '宿泊者名簿 ' + regNum(r) + ' 完了' : r.state === '確認済み' ? '宿泊者名簿 確認済み'
-      : r.state === '不足' ? '宿泊者名簿 ' + regNum(r) + '（あと' + Math.max(1, (r.want || 0) - (r.gn || 0) - (r.chat || 0)) + '名）' : '宿泊者名簿 ？ 確認できず';
-    const src = [r.gn != null ? 'Guest Note ' + r.gn + '名' : '', r.chat != null ? 'チャット ' + r.chat + '名' : ''].filter(Boolean).join('・');
-    return '<div class="regp ' + regCls(r) + '"><div class="rh">' + ICON_ID + head + '</div>'
-      + (r.state === '不足' || r.state === '確認できず' ? (r.reason ? '<div class="rr">' + esc(r.reason) + '</div>' : '') : (src ? '<div class="rr">' + esc(src) + '</div>' : ''))
-      + '<div class="rt">' + (r.at ? mdw(r.at.slice(0, 10)) + ' ' + hm(r.at) + ' 確認' : '') + (r.who ? '（' + esc(r.who) + '）' : '') + '</div>'
-      + (r.state === '確認できず' ? '<button class="btn full regok" data-act="regOk" data-v="' + r.id + '">✓ チャットで確認した（名簿OK）</button>' : '')
-      + (r.state === '完了' || r.state === '確認済み' ? '' : '<div class="regrf">' + (regWait ? '<span>' + SPIN + '名簿を更新中…（1〜2分）</span>' : '<button data-act="regRefresh">名簿を更新</button>') + '</div>') + '</div>';
+    // A案（ishiiさん 2026-09-29）：右上に「↻ 更新」とその下に最終確認、人数ぶんの人型、内訳の札。白い箱で色は数字と人型だけ
+    const busy = regWait || (D.regMeta || {}).state === '依頼' || (D.regMeta || {}).state === '更新中';
+    const want = r.want || 0, got = (r.gn || 0) + (r.chat || 0), c = regCls(r);
+    const right = busy ? '<span class="rp-b busy">' + SPIN + '更新中</span><div class="rp-at">1〜2分かかります</div>'
+      : '<button class="rp-b" data-act="regRefresh">↻ 更新</button><div class="rp-at">最終確認 ' + (r.at ? md(r.at.slice(0, 10)) + ' ' + hm(r.at) : '—') + '</div>';
+    const people = r.state === '確認できず' || !want ? '<div class="rp-q">？</div>'
+      : '<div class="rp-pp ' + c + '">' + Array.from({ length: Math.min(want, 8) }, (_, i) => i < got || r.state === '確認済み' ? ICON_USER_OK : ICON_USER).join('') + '</div>';
+    const num = r.state === '確認済み' ? '<b>確認済み</b><small>チャットで確認（' + esc(r.who || '管理画面') + '）</small>'
+      : r.state === '完了' ? '<b>' + got + ' / ' + want + '名</b><small>完了</small>'
+      : r.state === '不足' ? '<b>' + got + ' / ' + want + '名</b><small>あと' + Math.max(1, want - got) + '名 提出が必要</small>'
+      : '<b>確認できず</b><small>' + esc(r.reason || '') + '</small>';
+    const chips = [r.gn != null ? 'Guest Note ' + r.gn + '名' : '', r.chat != null ? 'チャット ' + r.chat + '名' : ''].filter(Boolean);
+    return '<div class="regp2"><div class="rp-h"><span class="rp-t">宿泊者名簿</span><div class="rp-r">' + right + '</div></div>'
+      + '<div class="rp-m">' + people + '<div class="rp-n ' + c + '">' + num + '</div></div>'
+      + (chips.length ? '<div class="rp-c">' + chips.map(x => '<span>' + x + '</span>').join('') + '</div>' : '')
+      + (r.state === '確認できず' ? '<button class="btn full regok" data-act="regOk" data-v="' + r.id + '">✓ チャットで確認した（名簿OK）</button>' : '') + '</div>';
   }
   // 名簿の最終確認と「名簿を更新」（押すと Mac mini が1分以内に Guest Note を読み直す。終わるまで15秒おきに読み直す）
   let regWait = null;
@@ -498,7 +527,7 @@
       const r = await api('admin_reg_refresh', {});
       regWait = { since: r.at, until: Date.now() + 6 * 60000 };
       const redraw = () => {   // 部屋の詳細を開いていれば開き直す（名簿の欄を最新に）
-        const keep = document.getElementById('sheet').classList.contains('on') && cur && document.querySelector('#sBody .regp') ? cur : null;
+        const keep = document.getElementById('sheet').classList.contains('on') && cur && document.querySelector('#sBody .regp, #sBody .regp2') ? cur : null;
         render(); if (keep) openDetail(keep.room, keep.day, keep.kind, keep.taskId || undefined);
       };
       redraw(); toast('名簿の更新を頼みました（1〜2分）');
@@ -657,7 +686,7 @@
   // カウント中の部屋があれば15秒おきに読み直す（部屋の詳細を開いていれば開き直す）
   setInterval(async () => {
     if (!D || !Object.values(D.reg || {}).some(r => r.state === 'カウント中') || document.hidden) return;
-    const keep = document.getElementById('sheet').classList.contains('on') && cur && document.querySelector('#sBody .regp') ? cur : null;
+    const keep = document.getElementById('sheet').classList.contains('on') && cur && document.querySelector('#sBody .regp, #sBody .regp2') ? cur : null;
     await load(true);
     if (keep) openDetail(keep.room, keep.day, keep.kind, keep.taskId || undefined);
   }, 15000);
@@ -871,7 +900,7 @@
   // ---------------------------------------------------------------- 新しい版があれば読み直す
   // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
   // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
-  const BUILD = '2026-09-29-141904';
+  const BUILD = '2026-09-29-181930';
   async function checkUpdate() {
     if (document.querySelector('.sheet.on, #ask.on')) return;                                  // 作業中は読み直さない
     try {
