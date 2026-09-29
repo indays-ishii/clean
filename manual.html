@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>清掃管理の使い方</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=2">
+<style>
+  :root { --ink: #222; --sub: #6b6b6b; --line: #e6e6e6; --bg: #fff; --card: #f7f7f7; --coral: #ff385c; --teal: #00a699; --teal-bg: #e6f6f5; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.6; }
+  main { max-width: 560px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+  header img { width: 56px; height: 56px; border-radius: 13px; border: 1px solid var(--line); }
+  h1 { font-size: 22px; margin: 0; }
+  .lead { color: var(--sub); font-size: 14px; margin: 0 0 24px; }
+  h2 { font-size: 18px; margin: 32px 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--coral); }
+  ol { list-style: none; padding: 0; margin: 0; counter-reset: s; }
+  ol li { counter-increment: s; position: relative; padding: 12px 0 12px 44px; border-bottom: 1px solid var(--line); font-size: 16px; }
+  ol li::before { content: counter(s); position: absolute; left: 0; top: 12px; width: 30px; height: 30px; border-radius: 50%; background: var(--coral); color: #fff; font-weight: 700; display: grid; place-items: center; font-size: 15px; }
+  ol li:last-child { border-bottom: 0; }
+  .btn { display: inline-block; border: 2px solid var(--teal); color: #00756c; border-radius: 10px; padding: 1px 10px; font-weight: 700; font-size: 14px; white-space: nowrap; }
+  .chk { display: inline-block; background: var(--teal-bg); color: #00756c; border-radius: 6px; padding: 0 8px; font-weight: 700; font-size: 14px; white-space: nowrap; }
+  small, .note { color: var(--sub); font-size: 13px; }
+  .qr { display: flex; gap: 16px; align-items: center; background: var(--card); border-radius: 14px; padding: 14px; }
+  .qr #qr { width: 120px; height: 120px; flex: none; background: #fff; border-radius: 8px; padding: 6px; }
+  .qr #qr svg { width: 100%; height: 100%; display: block; }
+  .qr a { color: var(--ink); font-weight: 700; word-break: break-all; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  tr { display: block; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  td { display: block; padding: 0; }
+  td:first-child { font-weight: 700; margin-bottom: 2px; }
+  .warn { background: #fff1f3; border-radius: 12px; padding: 12px 14px; font-size: 14px; margin-top: 28px; }
+  .warn b { color: #d0103a; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="icon-192.png?v=2" alt="">
+    <h1>清掃管理の使い方</h1>
+  </header>
+  <p class="lead">OCHAHOUSE の清掃報告アプリです。合言葉やログインはいりません。</p>
+
+  <h2>はじめに（1回だけ）</h2>
+  <div class="qr">
+    <div id="qr"></div>
+    <div>スマホのカメラで読むか、下のリンクを開いてください<br><a href="https://indays-ishii.github.io/clean/">indays-ishii.github.io/clean/</a></div>
+  </div>
+  <ol style="margin-top:12px">
+    <li><b>iPhone</b>：Safari で開き、下の共有ボタン（□に↑）→「ホーム画面に追加」<br><b>Android</b>：Chrome で開き、右上の︙ →「ホーム画面に追加」</li>
+    <li>ホーム画面にできた <b>「清掃管理」</b> のアイコンから開く</li>
+  </ol>
+
+  <h2>清掃が終わったら</h2>
+  <ol>
+    <li>「清掃待ち」の部屋の <span class="btn">📷</span> を押す<br><small>部屋の名前を押して <span class="btn">清掃を報告して完了</span> でも同じです</small></li>
+    <li><span class="chk">✓ Wi-Fi につながる</span> <span class="chk">✓ お湯が出る</span> を確かめて印をつける</li>
+    <li><span class="btn">写真を選んで報告</span> を押して、部屋の写真をまとめて選ぶ</li>
+  </ol>
+  <p class="note">これで完了です。運営に LINE で自動で知らせます（届くまで最大5分）。電波が悪くても、写真はあとで自動で送り直します。</p>
+
+  <h2>こんなときは</h2>
+  <table>
+    <tr><td>入り方を見たい</td><td>部屋の名前を押す → 入室方法（キーボックスの番号）が出ます</td></tr>
+    <tr><td>途中までやった</td><td>部屋の名前を押す → <span class="btn">途中まで清掃報告</span> → 済んだ項目に印</td></tr>
+    <tr><td>写真を足したい</td><td>「清掃済み」の部屋を押す → <span class="btn">前回の清掃に写真を追加</span></td></tr>
+    <tr><td>間違えて完了した</td><td>部屋の名前を押す → 「この完了を取り消す」</td></tr>
+    <tr><td>一覧にない部屋を清掃した</td><td>その部屋を押す → <span class="btn">新規の清掃を報告</span></td></tr>
+  </table>
+
+  <h2>画面の見方</h2>
+  <table>
+    <tr><td>清掃待ち</td><td>いま清掃してほしい部屋。<b style="color:#d0103a">赤い時刻</b>は今日が期限（次のゲストのチェックイン）</td></tr>
+    <tr><td>チェックアウト待ち</td><td>まだゲストがいる部屋。出たら「清掃待ち」に移ります</td></tr>
+    <tr><td>清掃済み</td><td>報告が済んだ部屋</td></tr>
+    <tr><td>滞在中</td><td>ゲストが泊まっている部屋</td></tr>
+  </table>
+
+  <div class="warn"><b>お願い：</b>このアプリには部屋の入り方が出ます。リンクや画面を、清掃スタッフ以外には送らないでください。</div>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+  try { const q = qrcode(0, 'M'); q.addData('https://indays-ishii.github.io/clean/'); q.make(); document.getElementById('qr').innerHTML = q.createSvgTag({ scalable: true, margin: 0 }); } catch (e) {}
+</script>
+</body>
+</html>
