@@ -859,10 +859,24 @@
     else if (a === 'add') addForm(b.dataset.room, b.dataset.day);
     else if (a === 'addSave') addSave();
   });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(true); });
+  // ---------------------------------------------------------------- 新しい版があれば読み直す
+  // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
+  // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
+  const BUILD = '2026-09-29-141309';
+  async function checkUpdate() {
+    if (document.querySelector('.sheet.on, #ask.on')) return;                                  // 作業中は読み直さない
+    try {
+      const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text();
+      const m = /BUILD = '([0-9-]+)'/.exec(t);   // 最初に出てくる目印（上の行）
+      if (!m || m[1] === BUILD) return;
+      try { if (sessionStorage.getItem('ochahouse-build-try') === m[1]) return; sessionStorage.setItem('ochahouse-build-try', m[1]); } catch (e) {}   // 同じ版へ何度も読み直さない
+      location.replace(location.pathname + '?v=' + encodeURIComponent(m[1]));
+    } catch (e) { /* 電波が悪いときはそのまま */ }
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { load(true); checkUpdate(); } });
   setInterval(() => { if (!document.hidden) load(true); }, 120000);
   try { const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); if (c && c.today === jstToday()) { D = c; render(); } } catch (e) {}
-  load();
+  load(); checkUpdate();
 </script>
 </body>
 </html>
