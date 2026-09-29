@@ -637,7 +637,6 @@
   }
 
   async function load() {
-    if (!getPass()) { askPass(); return; }
     const sync = document.getElementById('sync');
     if (tasks.length || today) sync.textContent = '更新中…';
     try { setData(await api('list')); render(); checkRole(); }
@@ -706,7 +705,7 @@
 
   // ---------------------------------------------------------------- 送信（1枚ずつ。失敗しても保管したまま、あとで続きから）
   async function pump() {
-    if (running || !getPass()) return;
+    if (running) return;
     running = true;
     try {
       for (const job of await jobs()) {
@@ -1004,7 +1003,7 @@
   // ---------------------------------------------------------------- 新しい版があれば読み直す
   // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
   // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
-  const BUILD = '2026-09-29-193929';
+  const BUILD = '2026-09-29-194929';
   async function checkUpdate() {
     if (running || document.querySelector('.viewer.on, .sheet.on')) return;                                  // 作業中は読み直さない
     try {
