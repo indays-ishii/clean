@@ -24,12 +24,12 @@
     --bg: #f6f6f2; --card: #ffffff; --ink: #1d1f1b; --sub: #6d7169; --muted: #a4a79f; --line: #e6e7e1; --line2: #d5d7cf;
     --matcha: #5b8e3e; --matcha-ink: #3f6a28; --matcha-bg: #edf3e6;
     --red: #c4442c; --red-ink: #a33520; --red-line: #eeb8ab; --red-bg: #fcefeb;
-    --amber: #8a6512; --amber-bg: #fbf3df; --gray-bg: #efefeb;
+    --amber: #8a6512; --amber-bg: #fbf3df; --gray-bg: #efefeb; --blue: #2f5f9e; --blue-bg: #e8eff9;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #121411; --card: #1b1d1a; --ink: #eef0ea; --sub: #a1a59c; --muted: #6c7068; --line: #2a2d28; --line2: #3a3e37;
       --matcha: #7fb65c; --matcha-ink: #a9d68a; --matcha-bg: #1f2c18;
-      --red: #ff7a5e; --red-ink: #ff9a84; --red-line: #6e2f23; --red-bg: #2f1a15; --amber: #e0b85a; --amber-bg: #2c2512; --gray-bg: #242622; }
+      --red: #ff7a5e; --red-ink: #ff9a84; --red-line: #6e2f23; --red-bg: #2f1a15; --amber: #e0b85a; --amber-bg: #2c2512; --gray-bg: #242622; --blue: #8fb4ea; --blue-bg: #1a2436; }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--ink);
@@ -147,7 +147,13 @@
   .regbar button[disabled] { border-color: var(--line2); color: var(--sub); }
   .regb { display: inline-flex; align-items: center; gap: 3px; margin-top: 3px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .regb svg { width: 16px; height: 16px; }
-  .regb.ok { color: var(--matcha-ink); } .regb.ng { color: var(--red-ink); } .regb.q { color: var(--amber); }
+  .regb.ok { color: var(--matcha-ink); } .regb.ng { color: var(--red-ink); } .regb.q { color: var(--amber); } .regb.cnt { color: var(--blue); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: spin 1s linear infinite; display: inline-block; flex: none; }
+  .regp.cnt { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); }
+  .cbar { height: 6px; border-radius: 3px; background: var(--card); margin-top: 8px; overflow: hidden; }
+  .cbar i { display: block; height: 100%; background: var(--blue); border-radius: 3px; transition: width .6s; }
+  .crow { display: flex; justify-content: space-between; font-size: 11px; margin-top: 4px; }
   .regp { border-radius: 12px; padding: 10px 12px; margin: -4px 0 12px; border: 1px solid var(--line); }
   .regp.ok { background: var(--matcha-bg); border-color: var(--matcha); color: var(--matcha-ink); }
   .regp.ng { background: var(--red-bg); border-color: var(--red-line); color: var(--red-ink); }
@@ -444,17 +450,30 @@
   // ---------------------------------------------------------------- 宿泊者名簿（人数と状態だけ。中身は Guest Note で見る。ishiiさん 2026-09-29）
   const ICON_ID = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6.5 16c.5-1.5 1.5-2 2.5-2s2 .5 2.5 2M14 10h4M14 13h3"/></svg>';
   const regOf = (room, day) => (D.reg || {})[room + '|' + day];
-  const regCls = (r) => r.state === '完了' || r.state === '確認済み' ? 'ok' : r.state === '不足' ? 'ng' : 'q';
+  const regCls = (r) => r.state === '完了' || r.state === '確認済み' ? 'ok' : r.state === '不足' ? 'ng' : r.state === 'カウント中' ? 'cnt' : 'q';
+  const COUNT_MAX_MIN = 3;   // AI がチャットの写真を数える目安（最大3分ほど）
+  const countSec = (r) => Math.max(0, Math.round((Date.now() - new Date(r.at).getTime()) / 1000));
+  const SPIN = '<span class="spin"></span>';
   const regNum = (r) => r.state === '確認できず' ? '？' : r.state === '確認済み' ? '✓' : ((r.gn || 0) + (r.chat || 0)) + '/' + (r.want || '？');
   // 一覧：身分証のアイコン＋「1/3」
   function regBadge(room, day) {
     const r = regOf(room, day);
+    if (r && r.state === 'カウント中') return '<span class="regb cnt">' + SPIN + (countSec(r) > COUNT_MAX_MIN * 60 ? 'カウントに時間がかかっています' : 'カウント中（最大' + COUNT_MAX_MIN + '分）') + '</span>';
     return r ? '<span class="regb ' + regCls(r) + '">' + ICON_ID + regNum(r) + '</span>' : '';
   }
   // 詳細：次のゲストのカードの下
   function regPanel(room, day) {
     const r = regOf(room, day);
     if (!r) return '';
+    if (r.state === 'カウント中') {   // AI がチャットの写真を数えている間（ishiiさん 2026-09-29）
+      const sec = countSec(r), late = sec > COUNT_MAX_MIN * 60, pct = Math.min(100, Math.round(sec / (COUNT_MAX_MIN * 60) * 100));
+      const el = Math.floor(sec / 60) + '分' + String(sec % 60).padStart(2, '0') + '秒';
+      return late
+        ? '<div class="regp q"><div class="rh">' + SPIN + '宿泊者名簿 カウントに時間がかかっています</div><div class="rr">写真が多いか、Mac mini が混んでいます。終わり次第ここに出ます（' + el + ' 経過）</div></div>'
+        : '<div class="regp cnt"><div class="rh">' + SPIN + '宿泊者名簿 カウント中…</div><div class="rr">チャットに新しいメッセージか写真が届きました。AI が人数を数えています</div>'
+          + '<div class="cbar"><i style="width:' + pct + '%"></i></div><div class="crow"><span>' + el + ' 経過</span><span>最大' + COUNT_MAX_MIN + '分ほど</span></div>'
+          + '<div class="rt">Guest Note ' + (r.gn != null ? r.gn + '名' : '—') + '・チャット 数えています ／ ' + hm(r.at) + ' 新着を検知</div></div>';
+    }
     const head = r.state === '完了' ? '宿泊者名簿 ' + regNum(r) + ' 完了' : r.state === '確認済み' ? '宿泊者名簿 確認済み'
       : r.state === '不足' ? '宿泊者名簿 ' + regNum(r) + '（あと' + Math.max(1, (r.want || 0) - (r.gn || 0) - (r.chat || 0)) + '名）' : '宿泊者名簿 ？ 確認できず';
     const src = [r.gn != null ? 'Guest Note ' + r.gn + '名' : '', r.chat != null ? 'チャット ' + r.chat + '名' : ''].filter(Boolean).join('・');
@@ -626,6 +645,13 @@
     });
   })();
   setInterval(updLabel, 30000);
+  // カウント中の部屋があれば15秒おきに読み直す（部屋の詳細を開いていれば開き直す）
+  setInterval(async () => {
+    if (!D || !Object.values(D.reg || {}).some(r => r.state === 'カウント中') || document.hidden) return;
+    const keep = document.getElementById('sheet').classList.contains('on') && cur && document.querySelector('#sBody .regp') ? cur : null;
+    await load(true);
+    if (keep) openDetail(keep.room, keep.day, keep.kind, keep.taskId || undefined);
+  }, 15000);
   // 残り時間の円を1分ごとに進める（部屋の詳細を開いている間は動かさない）
   setInterval(() => { if (D && !document.getElementById('sheet').classList.contains('on')) render(); }, 60000);
 
