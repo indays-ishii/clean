@@ -278,6 +278,21 @@
   .sheet .q { white-space: pre-line; font-size: 18px; font-weight: 600; line-height: 1.5; margin-bottom: 18px; }
   .sheet button { display: block; width: 100%; height: 54px; border: 0; border-radius: 16px; font-size: 17px; font-weight: 700; }
   .sheet .yes { background: var(--red); color: #fff; }
+  /* 最終確認 */
+  .panel.chk { text-align: left; }
+  .ck-t { font-size: 18px; font-weight: 700; }
+  .ck-s { font-size: 13px; color: var(--sub); margin: 4px 0 6px; line-height: 1.5; }
+  .ck-i { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border: 1.5px solid var(--line); border-radius: 14px; margin-top: 8px; }
+  .ck-i:has(input:checked) { border-color: var(--matcha); background: var(--matcha-bg); }
+  .ck-i input { appearance: none; -webkit-appearance: none; width: 24px; height: 24px; margin: 0; flex: none; border: 2px solid var(--line2); border-radius: 6px; background: var(--card); display: grid; place-content: center; }
+  .ck-i input:checked { border-color: var(--matcha); }
+  .ck-i input:checked::before { content: ""; width: 12px; height: 6px; border-left: 3px solid var(--matcha); border-bottom: 3px solid var(--matcha); transform: translateY(-2px) rotate(-45deg); }
+  .ck-ic { color: var(--matcha); display: flex; } .ck-ic svg { width: 24px; height: 24px; }
+  .ck-i b { display: block; font-size: 16px; } .ck-i small { display: block; font-size: 12px; color: var(--sub); margin-top: 1px; }
+  .sheet .ck-go { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 14px; background: var(--card); color: var(--matcha-ink); border: 2px solid var(--matcha); font-weight: 700; }
+  .sheet .ck-go svg { width: 20px; height: 20px; }
+  .sheet .ck-go[disabled] { color: var(--muted); border-color: var(--line2); background: var(--bg); }
+  .ck-n { text-align: center; font-size: 12px; color: var(--sub); margin-top: 6px; }
   .doneOk { width: 56px; height: 56px; margin: 0 auto 12px; border-radius: 50%; border: 2.5px solid var(--matcha); color: var(--matcha); display: flex; align-items: center; justify-content: center; }
   .doneOk svg { width: 30px; height: 30px; }
   .doneSub { white-space: pre-line; font-size: 13px; color: var(--sub); line-height: 1.6; margin: -8px 0 14px; }
@@ -307,6 +322,17 @@
     <div class="err" id="passErr"></div>
     <button class="go" type="submit">はじめる</button>
   </form>
+</div>
+<div class="sheet" id="chkSheet">
+  <div class="panel chk">
+    <div class="ck-t">最終確認</div>
+    <div class="ck-s">ゲストからの問い合わせが多い2つです。確かめたら印をつけてください</div>
+    <label class="ck-i"><input type="checkbox" id="ckWifi"><span class="ck-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.4a10 10 0 0 1 14 0M8.5 15.9a5 5 0 0 1 7 0"/><circle cx="12" cy="19.3" r="1" fill="currentColor"/></svg></span><span><b>Wi-Fi につながる</b><small>スマホでつないで確認</small></span></label>
+    <label class="ck-i"><input type="checkbox" id="ckHot"><span class="ck-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></span><span><b>お湯が出る</b><small>シャワー・洗面で確認</small></span></label>
+    <button class="ck-go" id="ckGo" disabled></button>
+    <div class="ck-n" id="ckNote">2つとも印をつけると押せます</div>
+    <button class="no" data-act="closeChk">やめる</button>
+  </div>
 </div>
 <div class="sheet" id="doneSheet">
   <div class="panel">
@@ -624,6 +650,25 @@
 
   // ---------------------------------------------------------------- 写真を選ぶ → 縮める → 保管
   let pickRoom = '';
+  // 清掃を報告する前の最終確認：Wi-Fi とお湯（ゲストからの問い合わせが多い。ishiiさん 2026-09-29）。記録は残さない
+  let chkNext = null;
+  function startReport(id, room) {
+    chkNext = { id: id, room: room };
+    ['ckWifi', 'ckHot'].forEach(k => { document.getElementById(k).checked = false; });
+    document.getElementById('ckGo').innerHTML = ICON_CAM + '写真を選んで報告';
+    chkUpdate();
+    document.getElementById('chkSheet').classList.add('on');
+  }
+  function chkUpdate() {
+    const ok = document.getElementById('ckWifi').checked && document.getElementById('ckHot').checked;
+    document.getElementById('ckGo').disabled = !ok;
+    document.getElementById('ckNote').textContent = ok ? '押すと写真の選択に進みます' : '2つとも印をつけると押せます';
+  }
+  function closeChk() { chkNext = null; document.getElementById('chkSheet').classList.remove('on'); }
+  document.getElementById('chkSheet').addEventListener('change', chkUpdate);
+  document.getElementById('chkSheet').addEventListener('click', (e) => { if (e.target.id === 'chkSheet') closeChk(); });
+  document.getElementById('ckGo').addEventListener('click', () => { const n = chkNext; closeChk(); if (n) pick(n.id, n.room); });   // 押した流れのまま写真の選択を開く
+
   function pick(id, room) { picking = id; pickRoom = room || ''; const p = document.getElementById('pick'); p.value = ''; p.click(); }
 
   function shrink(file) {
@@ -945,13 +990,13 @@
   });
 
   function closeRoom() { roomOpen = null; document.getElementById('roomSheet').classList.remove('on'); document.getElementById('rKeys') && (document.getElementById('rBody').innerHTML = ''); }
-  document.getElementById('rPick').addEventListener('click', () => { const id = roomOpen; closeRoom(); if (id) pick(id); });  // 予定の無い部屋は id が room:部屋名 ＝一覧外の清掃として報告
+  document.getElementById('rPick').addEventListener('click', () => { const id = roomOpen; closeRoom(); if (id) startReport(id); });  // 予定の無い部屋は id が room:部屋名 ＝一覧外の清掃として報告
   document.getElementById('rAdd').addEventListener('click', () => { const f = leftAct; closeRoom(); if (f) f(); });
 
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
-    ({ roomFree: openRoomFree, lastPhotos: lastPhotos, toAdmin: toAdmin, room: openRoom, closeRoom: closeRoom, pick: pick, zoom: (i) => zoom(+i), closeLb: closeLb,
+    ({ roomFree: openRoomFree, lastPhotos: lastPhotos, toAdmin: toAdmin, room: openRoom, closeRoom: closeRoom, pick: (id) => startReport(id), closeChk: closeChk, zoom: (i) => zoom(+i), closeLb: closeLb,
        undoLast: () => { const u = undoInfo; closeRoom(); if (u) undoAny(u); }, closePart: closePart, closeDone: closeDone,
        partPick: () => { const p = document.getElementById('partPick'); p.value = ''; p.click(); }, stayToggle: () => { showStay = !showStay; render(); } })[b.dataset.act](b.dataset.id);
   });
@@ -959,7 +1004,7 @@
   // ---------------------------------------------------------------- 新しい版があれば読み直す
   // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
   // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
-  const BUILD = '2026-09-29-182253';
+  const BUILD = '2026-09-29-183051';
   async function checkUpdate() {
     if (running || document.querySelector('.viewer.on, .sheet.on')) return;                                  // 作業中は読み直さない
     try {
