@@ -350,7 +350,8 @@
   const addDays = (ymd, n) => new Date(Date.parse(ymd + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
   const md = (ymd) => { const d = new Date(ymd + 'T00:00:00Z'); return (d.getUTCMonth() + 1) + '/' + d.getUTCDate(); };
   const mdw = (ymd) => md(ymd) + ' ' + WD[new Date(ymd + 'T00:00:00Z').getUTCDay()];
-  const weekStart = () => { const t = jstToday(), w = new Date(t + 'T00:00:00Z').getUTCDay(); return addDays(t, -w + weekOff * 7); };
+  // 7日の並びは今日を一番左に（日曜はじまりをやめた。ishiiさん 2026-09-30）。前後の矢印で7日ずつ
+  const weekStart = () => addDays(jstToday(), weekOff * 7);
   const days = () => { const s = weekStart(); return Array.from({ length: 7 }, (_, i) => addDays(s, i)); };
   function toast(m, bad) { const t = document.getElementById('toast'); t.textContent = m; t.className = 'toast on' + (bad ? ' bad' : ''); clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', bad ? 4500 : 2200); }
 
@@ -904,7 +905,7 @@
   // ---------------------------------------------------------------- 新しい版があれば読み直す
   // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
   // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
-  const BUILD = '2026-09-30-133458';
+  const BUILD = '2026-09-30-135502';
   async function checkUpdate() {
     if (document.querySelector('.sheet.on, #ask.on')) return;                                  // 作業中は読み直さない
     try {
