@@ -408,11 +408,9 @@
   const ROLE_KEY = 'ochahouse-role', VIEW_KEY = 'ochahouse-view';
   const lsGet = (k) => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (e) {} };
-  function showSwitch() { document.getElementById('modeSw').hidden = lsGet(ROLE_KEY) !== 'admin'; }
-  async function checkRole() {
-    if (lsGet(ROLE_KEY)) { showSwitch(); return; }
-    try { lsSet(ROLE_KEY, (await api('whoami')).role); showSwitch(); } catch (e) {}
-  }
+  // 合言葉なし（2026-09-30）：だれでも 清掃｜管理 を切り替えられる
+  function showSwitch() { document.getElementById('modeSw').hidden = false; }
+  function checkRole() { showSwitch(); }
   function toAdmin() { lsSet(VIEW_KEY, 'admin'); location.href = 'admin/'; }
 
   function savePass(ev) {
@@ -1004,7 +1002,7 @@
   // ---------------------------------------------------------------- 新しい版があれば読み直す
   // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
   // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
-  const BUILD = '2026-09-30-120931';
+  const BUILD = '2026-09-30-133458';
   async function checkUpdate() {
     if (running || document.querySelector('.viewer.on, .sheet.on')) return;                                  // 作業中は読み直さない
     try {
@@ -1018,7 +1016,7 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { load(); pump(); checkUpdate(); } });
   setInterval(() => { if (!document.hidden && !passAsked) { load(); pump(); } }, 60000);
   // 運営メンバーが前回「管理」を見ていたら、そのまま管理画面を開く
-  if (lsGet(ROLE_KEY) === 'admin' && lsGet(VIEW_KEY) === 'admin' && getPass()) location.replace('admin/');
+  if (lsGet(VIEW_KEY) === 'admin') location.replace('admin/');
   showSwitch();
   document.querySelectorAll('.x').forEach(b => b.innerHTML = ICON_X);
   if (loadCache()) render();
