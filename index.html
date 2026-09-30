@@ -602,7 +602,8 @@
   async function render() {
     const js = {}; (await jobs()).forEach(j => js[j.id] = j);
     const live = (id) => js[id] && js[id].state !== 'completing' ? js[id] : null;
-    const todo = tasks.filter(t => !t.done), done = tasks.filter(t => t.done);
+    // 報告がないまま次のゲストが入った清掃（missed）は出さない。部屋は「滞在中」に入る（ishiiさん 2026-09-30）
+    const todo = tasks.filter(t => !t.done && !t.missed), done = tasks.filter(t => t.done);
     document.getElementById('date').innerHTML = today ? '<span class="lbl">本日</span>' + dwk(today) : ' ';
     document.getElementById('sum').innerHTML = today && summary ? gauge(summary) : '';
     if (!today) return;
@@ -1003,7 +1004,7 @@
   // ---------------------------------------------------------------- 新しい版があれば読み直す
   // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
   // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
-  const BUILD = '2026-09-29-194929';
+  const BUILD = '2026-09-30-120931';
   async function checkUpdate() {
     if (running || document.querySelector('.viewer.on, .sheet.on')) return;                                  // 作業中は読み直さない
     try {

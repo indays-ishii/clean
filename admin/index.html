@@ -395,6 +395,9 @@
   // INの日の清掃：清掃の行、または要確認の印 {check:true}
   const taskIn = (room, day) => taskDue(room, day) || (needCheck(room, day) ? { check: true } : null);
 
+  // 報告がないまま次のゲストが入った清掃（期限＝次のINが昨日以前で、OUT日から昨日までにINがある。ishiiさん 2026-09-30）
+  const missed = (t) => !!t && t.status !== '完了' && t.status !== 'キャンセル' && !!t.due && t.due.slice(0, 10) < D.today
+    && B().some(b => b.room === t.room && b.in >= t.day && b.in < D.today);
   // 清掃の状態 → {cls, label}
   function st(t) {
     if (!t) return { cls: 'none', label: '空室から' };   // 前の清掃のあとチェックアウトが無かった部屋
@@ -403,6 +406,7 @@
     if (t.status === 'キャンセル') return { cls: 'none', label: '清掃不要' };
     const today = D.today, now = new Date();
     if (t.day > today) return { cls: 'plan', label: '🗓 予定' };
+    if (missed(t)) return { cls: 'hot', label: '📝 報告なし（入室済み）' };
     if (t.due && new Date(t.due) < now) return { cls: 'hot', label: '🚨 期限切れ' };
     if (t.due && t.due.slice(0, 10) === today) return { cls: 'hot', label: '⚠️ 今日締切' };
     return { cls: 'warn', label: '⚠️ 未清掃' };
@@ -419,7 +423,8 @@
       + '<div class="gl g"><i></i>準備OK<b>' + sm.done + '</b></div>'
       + '<div class="gl' + (rest ? ' r' : '') + '"><i></i>未完了<b>' + rest + '</b></div>'
       + (check ? '<div class="gl a"><i></i>要確認（清掃記録なし）<b>' + check + '</b></div>' : '')
-      + (late ? '<div class="gl r"><i></i>期限切れ<b>' + late + '</b></div>' : '') + '</div>';
+      + (late ? '<div class="gl r"><i></i>期限切れ<b>' + late + '</b></div>' : '')
+      + (sm.missed ? '<div class="gl r"><i></i>報告なし（入室済み）<b>' + sm.missed + '</b></div>' : '') + '</div>';
   }
   function remain(due) {
     const m = Math.round((new Date(due) - new Date()) / 60000);
@@ -900,7 +905,7 @@
   // ---------------------------------------------------------------- 新しい版があれば読み直す
   // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
   // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
-  const BUILD = '2026-09-29-194929';
+  const BUILD = '2026-09-30-120931';
   async function checkUpdate() {
     if (document.querySelector('.sheet.on, #ask.on')) return;                                  // 作業中は読み直さない
     try {
