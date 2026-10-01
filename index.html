@@ -157,6 +157,7 @@
 
   /* 空・読み込み中 */
   .empty { text-align: center; padding: 70px 0 30px; color: var(--sub); font-size: 15px; line-height: 1.8; }
+  .empty .reload { margin-top: 14px; border: 2px solid var(--matcha); color: var(--matcha-ink); background: var(--card); border-radius: 12px; padding: 8px 22px; font-size: 15px; font-weight: 700; }
   .empty svg { width: 44px; height: 44px; color: var(--matcha); margin-bottom: 8px; }
   .skel { height: 58px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); margin: 0 0 12px; opacity: .7; }
   .skel.s { height: 14px; width: 90px; border: 0; background: var(--line); border-radius: 7px; margin-bottom: 8px; }
@@ -373,7 +374,7 @@
   const API_URL = 'https://ochahouse-clean-api.ishii-8e0.workers.dev';   // Cloudflare Workers（2026-09-26 Google Apps Script から移行）
   const PASS_KEY = 'ochahouse-clean-pass';
   const MAX_SIDE = 1024, QUALITY = 0.5;          // 画質は低くてよい（ishiiさん 2026-09-26）。軽いほど速く送れる
-  const PARALLEL = 5;                            // 1枚ずつ、5本同時に送る（受け口は Cloudflare Workers で速い）
+  const PARALLEL = 3;                            // 1枚ずつ、3本同時に送る（Notion は1秒に約3件まで。2台同時でもあふれにくく。2026-10-01）
   const UPLOAD_TTL = 50 * 60 * 1000;             // Notionに預けた写真は1時間で消えるので、50分を過ぎたら送り直す
     let tasks = [], rooms = [], today = '', picking = null, running = false, passAsked = false;
 
@@ -423,18 +424,26 @@
   }
 
   // ---------------------------------------------------------------- 受け口
+  // 通信に待ち時間の上限を付ける（電波が悪い・iPhoneで画面を切り替えたときに止まったままにしない。2026-10-01）
+  async function fetchT(url, opt, ms) {
+    const c = new AbortController(), t = setTimeout(() => c.abort(), ms);
+    try { return await fetch(url, Object.assign({ signal: c.signal }, opt)); }
+    catch (e) { throw new Error(e && e.name === 'AbortError' ? '時間切れ' : (e && e.message) || '通信できません'); }
+    finally { clearTimeout(t); }
+  }
+
   async function upload(b64, filename) {
     const blob = await (await fetch('data:image/jpeg;base64,' + b64)).blob();
     const f = new FormData();
     f.append('pass', getPass()); f.append('file', blob, filename);
-    const j = await (await fetch(API_URL, { method: 'POST', body: f })).json();
+    const j = await (await fetchT(API_URL, { method: 'POST', body: f }, 90000)).json();
     if (!j.ok && j.error === 'passcode') { setPass(''); askPass('合言葉がちがいます'); throw { silent: true }; }
     if (!j.ok) throw new Error(j.error || 'エラー');
     return j.data.upload;
   }
 
   async function api(action, extra) {
-    const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(Object.assign({ pass: getPass(), action: action }, extra || {})) });
+    const res = await fetchT(API_URL, { method: 'POST', body: JSON.stringify(Object.assign({ pass: getPass(), action: action }, extra || {})) }, 45000);
     const j = await res.json();
     if (!j.ok && j.error === 'passcode') { setPass(''); askPass('合言葉がちがいます'); throw { silent: true }; }
     if (!j.ok) throw new Error(j.error || 'エラー');
@@ -458,9 +467,12 @@
     });
     return dbp;
   }
+  // iPhone では画面を切り替えたあと IndexedDB の返事が来なくなることがある。3秒で諦めて画面・送信を止めない（2026-10-01）
   function tx(mode, fn, fallback) {
     return db().then((d) => new Promise((ok) => {
       if (!d) return ok(fallback());
+      const t0 = setTimeout(() => ok(fallback()), 3000);
+      const done = ok; ok = (v) => { clearTimeout(t0); done(v); };
       try {
         const t = d.transaction('jobs', mode), st = t.objectStore('jobs'), q = fn(st);
         t.oncomplete = () => ok(q && q.result !== undefined ? q.result : undefined);
@@ -641,7 +653,7 @@
     try { setData(await api('list')); render(); checkRole(); }
     catch (e) {
       if (e.silent) return;
-      if (!today) document.getElementById('list').innerHTML = '<div class="empty">読み込めませんでした<br>電波の良い所で開き直してください</div>';
+      if (!today) document.getElementById('list').innerHTML = '<div class="empty">読み込めませんでした<br>電波の良い所で開き直してください<br><button class="reload" onclick="location.reload()">開き直す</button></div>';
       showErr(e.message || String(e));
     } finally { sync.textContent = ''; }
   }
@@ -752,10 +764,14 @@
         } catch (e) {
           if (e && e.silent) break;
           job.state = 'waiting'; await putJob(job); render();
+          retrySoon();
         }
       }
     } finally { running = false; }
   }
+  // 送れなかったら、1分おきの見回りを待たずに10秒後にもう一度（2026-10-01）
+  let retryT = null;
+  function retrySoon() { if (!retryT) retryT = setTimeout(() => { retryT = null; pump(); }, 10000); }
 
   // ---------------------------------------------------------------- 報告しました（通知するかは選ばせない。LINEへは見張りが5分おきに送る。ishiiさん 2026-09-28）
   function doneSheet(room, n, at) {
@@ -1002,7 +1018,7 @@
   // ---------------------------------------------------------------- 新しい版があれば読み直す
   // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
   // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
-  const BUILD = '2026-09-30-135502';
+  const BUILD = '2026-10-01-165427';
   async function checkUpdate() {
     if (running || document.querySelector('.viewer.on, .sheet.on')) return;                                  // 作業中は読み直さない
     try {
@@ -1021,6 +1037,11 @@
   document.querySelectorAll('.x').forEach(b => b.innerHTML = ICON_X);
   if (loadCache()) render();
   load(); pump(); checkUpdate();
+  // 8秒たっても一覧が出ないときは、空のままにせず知らせる（2026-10-01）
+  setTimeout(() => {
+    if (today) return;
+    document.getElementById('list').innerHTML = '<div class="empty">読み込み中です…<br>電波が弱いと時間がかかります<br><button class="reload" onclick="location.reload()">開き直す</button></div>';
+  }, 8000);
 </script>
 </body>
 </html>
