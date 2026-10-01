@@ -374,7 +374,7 @@
   const API_URL = 'https://ochahouse-clean-api.ishii-8e0.workers.dev';   // Cloudflare Workers（2026-09-26 Google Apps Script から移行）
   const PASS_KEY = 'ochahouse-clean-pass';
   const MAX_SIDE = 1024, QUALITY = 0.5;          // 画質は低くてよい（ishiiさん 2026-09-26）。軽いほど速く送れる
-  const PARALLEL = 3;                            // 1枚ずつ、3本同時に送る（Notion は1秒に約3件まで。2台同時でもあふれにくく。2026-10-01）
+  const PARALLEL = 4;                            // 1枚ずつ、4本同時に送る（2026-10-01〜 受け口の預かり所 R2 に置くだけなので速い。Notion へは受け口が裏で順番に入れる）
   const UPLOAD_TTL = 50 * 60 * 1000;             // Notionに預けた写真は1時間で消えるので、50分を過ぎたら送り直す
     let tasks = [], rooms = [], today = '', picking = null, running = false, passAsked = false;
 
@@ -724,7 +724,9 @@
         job.state = 'sending'; await putJob(job); render();
         try {
           // まだ届いていない写真を、PARALLEL 本ずつ同時に1枚ずつ送る
-          const todoIdx = job.photos.map((_, i) => i).filter(i => !(job.uploads[i] && Date.now() - job.at[i] < UPLOAD_TTL));
+          // 預かり所（r2:）の写真は1日もつ。Notion に直接預けた写真は1時間で消える
+          const ttl = (u) => String(u).indexOf('r2:') === 0 ? 20 * 3600000 : UPLOAD_TTL;
+          const todoIdx = job.photos.map((_, i) => i).filter(i => !(job.uploads[i] && Date.now() - job.at[i] < ttl(job.uploads[i])));
           const worker = async () => {
             for (let i = todoIdx.shift(); i !== undefined; i = todoIdx.shift()) {
               job.uploads[i] = await upload(job.photos[i], 'photo' + (i + 1) + '.jpg'); job.at[i] = Date.now();
@@ -777,7 +779,7 @@
   function doneSheet(room, n, at) {
     document.getElementById('doneOk').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 12.5 4 4 8-8.5"/></svg>';
     document.getElementById('doneQ').textContent = room + ' の清掃を\nLINE に報告しました';
-    document.getElementById('doneSub').textContent = '写真 ' + n + '枚・' + md(at.slice(0, 10)) + ' ' + hm(at) + '\n（LINE への反映は最大5分かかります）';
+    document.getElementById('doneSub').textContent = '写真 ' + n + '枚・' + md(at.slice(0, 10)) + ' ' + hm(at) + '\n（写真の取り込みと LINE への反映は数分かかります。アプリは閉じて大丈夫です）';
     document.getElementById('doneSheet').classList.add('on');
   }
   function closeDone() { document.getElementById('doneSheet').classList.remove('on'); }
@@ -1018,7 +1020,7 @@
   // ---------------------------------------------------------------- 新しい版があれば読み直す
   // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
   // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
-  const BUILD = '2026-10-01-165427';
+  const BUILD = '2026-10-01-181649';
   async function checkUpdate() {
     if (running || document.querySelector('.viewer.on, .sheet.on')) return;                                  // 作業中は読み直さない
     try {
