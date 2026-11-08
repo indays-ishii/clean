@@ -454,9 +454,10 @@
   // iPhoneのSafariやLINEの中のブラウザでは IndexedDB が開けない・返事が来ないことがある。
   // その時はこの画面を開いている間だけの保管に切り替え、一覧の表示は止めない。
   const mem = new Map();
-  let dbp = null;
+  let dbp = null, memOnly = false;   // memOnly：端末に保管できない（画面を閉じると送信待ちの写真が消える）
   function db() {
-    if (!dbp) dbp = new Promise((ok) => {
+    if (!dbp) dbp = new Promise((ok0) => {
+      const ok = (d) => { if (!d) memOnly = true; ok0(d); };
       const t = setTimeout(() => ok(null), 1500);
       try {
         const r = indexedDB.open('ochahouse-clean', 1);
@@ -471,7 +472,7 @@
   function tx(mode, fn, fallback) {
     return db().then((d) => new Promise((ok) => {
       if (!d) return ok(fallback());
-      const t0 = setTimeout(() => ok(fallback()), 3000);
+      const t0 = setTimeout(() => { memOnly = true; ok(fallback()); }, 3000);
       const done = ok; ok = (v) => { clearTimeout(t0); done(v); };
       try {
         const t = d.transaction('jobs', mode), st = t.objectStore('jobs'), q = fn(st);
@@ -525,10 +526,13 @@
       + '<text x="20" y="23.5" text-anchor="middle">' + sent + '/' + j.photos.length + '</text></svg>';
   }
   function jobNote(j) {
-    const sent = j.uploads.filter(Boolean).length;
-    if (j.state === 'waiting') return '<small class="warn">電波が戻ったら続きを自動で送ります</small>';
+    const sent = j.uploads.filter(Boolean).length, left = j.photos.length - sent;
+    // 端末に保管できないときは、閉じると写真が消えるので閉じないよう伝える（2026-11-08）
+    const keep = memOnly ? '<small class="warn">送り終わるまでこの画面を閉じないでください</small>' : '<small>画面を閉じても、次に開いたとき続きから送ります</small>';
+    if (j.state === 'waiting') return '<small class="warn">あと' + left + '枚・電波が戻ったら自動で送り直します</small>' + keep;
     if (j.state === 'preparing') return '<small>写真を準備しています…</small>';
-    return '<small>' + (sent === j.photos.length ? '完了にしています…' : '写真を送っています…') + '</small>';
+    if (sent === j.photos.length) return '<small>完了にしています…</small>';
+    return '<small>写真を送っています（' + sent + '/' + j.photos.length + '枚）' + (j.slow ? '・電波が弱いので1枚ずつ' : '') + '</small>' + (j.slow || memOnly ? keep : '');
   }
 
   // 部屋名：施設を小さく上に、部屋番号を大きく
@@ -544,7 +548,9 @@
     const early = /アーリー/.test(t.deadline);
     let sub = '';
     // OUTは前のゲストのもの。今日・明日にも日付を添える（ishiiさん 2026-09-28）
-    const outDay = (['今日', '明日', '昨日'].includes(rel(t.day)) ? rel(t.day) + ' ' : '') + md(t.day) + (t.out ? ' ' + t.out : '');
+    // 部屋から報告・写真の追加・途中報告の送信中（t.day が無い）は日付を作らない。
+    // 作ろうとして一覧の描画が止まり、送信中に「エラー」が出ていた（2026-11-08 写真が途中でエラーになる報告）
+    const outDay = t.day ? (['今日', '明日', '昨日'].includes(rel(t.day)) ? rel(t.day) + ' ' : '') + md(t.day) + (t.out ? ' ' + t.out : '') : '';
     if (t.day) sub = isLater ? '今のゲスト ' + outDay + ' OUT後' : '前のゲスト ' + outDay + ' OUT';   // 「清掃待ち」は空室なので「空室」は書かない
     sub = j ? jobNote(j) : sub ? '<small>' + sub + '</small>' : '';
     const note = t.note && !j ? '<span class="note">' + esc(t.note) + '</span>' : '';
@@ -757,13 +763,29 @@
           // 預かり所（r2:）の写真は1日もつ。Notion に直接預けた写真は1時間で消える
           const ttl = (u) => String(u).indexOf('r2:') === 0 ? 20 * 3600000 : UPLOAD_TTL;
           const todoIdx = job.photos.map((_, i) => i).filter(i => !(job.uploads[i] && Date.now() - job.at[i] < ttl(job.uploads[i])));
-          const worker = async () => {
-            for (let i = todoIdx.shift(); i !== undefined; i = todoIdx.shift()) {
-              job.uploads[i] = await upload(job.photos[i], 'photo' + (i + 1) + '.jpg'); job.at[i] = Date.now();
-              await putJob(job); render();
+          // 1枚失敗しても報告全体をやり直さず、その1枚だけを2秒・5秒あけて送り直す（最大3回）。
+          // 一度失敗したら電波が弱いとみて、残りは1本ずつ送る。全部の送信が終わってから次へ進み、裏で送信が重ならないようにする（2026-11-08）
+          let stop = null;
+          const sendOne = async (i) => {
+            for (let k = 0; ; k++) {
+              try { return await upload(job.photos[i], 'photo' + (i + 1) + '.jpg'); }
+              catch (e) {
+                if ((e && e.silent) || k >= 2) throw e;
+                job.slow = true; render();
+                await new Promise(r => setTimeout(r, k ? 5000 : 2000));
+              }
             }
           };
-          await Promise.all(Array.from({ length: PARALLEL }, worker));
+          const worker = async (lane) => {
+            for (let i = todoIdx.shift(); i !== undefined; i = todoIdx.shift()) {
+              try { job.uploads[i] = await sendOne(i); job.at[i] = Date.now(); }
+              catch (e) { todoIdx.length = 0; if (!stop) stop = e; return; }   // ほかの送信も新しい写真は取らずに終える
+              await putJob(job); render();
+              if (job.slow && lane > 0) return;   // 電波が弱いときは1本だけ残す
+            }
+          };
+          await Promise.all(Array.from({ length: job.slow ? 1 : PARALLEL }, (_, lane) => worker(lane)));
+          if (stop) throw stop;
           const room = job.id.indexOf('room:') === 0 ? job.id.slice(5) : '';
           if (job.id.indexOf('part:') === 0) {   // 途中まで清掃報告（完了にはしない）
             job.state = 'completing'; await putJob(job);
@@ -1050,7 +1072,7 @@
   // ---------------------------------------------------------------- 新しい版があれば読み直す
   // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
   // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
-  const BUILD = '2026-11-08-164537';
+  const BUILD = '2026-11-08-171459';
   async function checkUpdate() {
     if (running || document.querySelector('.viewer.on, .sheet.on')) return;                                  // 作業中は読み直さない
     try {
