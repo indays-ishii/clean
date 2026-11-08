@@ -858,6 +858,7 @@
   }
 
   // ---------------------------------------------------------------- 読み込み
+  let cleanPrefetched = false;
   async function load(quiet) {
     const ds = days();
     try {
@@ -865,6 +866,11 @@
       loadedAt = Date.now();
       try { localStorage.setItem(CACHE_KEY, JSON.stringify(D)); } catch (e) {}
       render();
+      // 清掃画面の中身も裏で1回取っておき、切り替えた瞬間に出す（受け口は毎回2〜3秒かかる。2026-11-08）
+      if (!cleanPrefetched) {
+        cleanPrefetched = true;
+        api('list').then((d) => { try { localStorage.setItem('ochahouse-clean-list', JSON.stringify(d)); } catch (e) {} }).catch(() => {});
+      }
     } catch (e) {
       if (e.silent) return;
       if (!D) document.getElementById('view').innerHTML = '<div class="empty">読み込めませんでした。電波の良い所で開き直してください</div>';
@@ -905,7 +911,7 @@
   // ---------------------------------------------------------------- 新しい版があれば読み直す
   // GitHub Pages はスマホがページを最大10分覚えている。開いたとき・画面に戻ったときに最新のページを取り、
   // 版の目印（BUILD）が違えば読み直す。公開のたびに bump.sh で目印を書き換える（ishiiさん 2026-09-29）
-  const BUILD = '2026-10-01-181649';
+  const BUILD = '2026-11-08-164537';
   async function checkUpdate() {
     if (document.querySelector('.sheet.on, #ask.on')) return;                                  // 作業中は読み直さない
     try {
